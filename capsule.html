@@ -40,16 +40,6 @@
     }
     .char-count { font-size: 12px; color: #999; text-align: right; margin-top: 4px; }
 
-    .voice-section { margin: 15px 0; }
-    .voice-btn {
-      background: #fff; border: 2px solid #faa2c1; color: #d6336c;
-      padding: 10px 25px; border-radius: 50px; font-size: 15px; cursor: pointer;
-      display: inline-flex; align-items: center; gap: 8px;
-    }
-    .voice-btn.recording { background: #ff6b9d; color: white; border-color: #ff6b9d; animation: pulse 1s infinite; }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
-    .voice-status { font-size: 13px; color: #e6739f; margin-top: 8px; }
-
     .btn {
       background: linear-gradient(135deg, #ff6b9d, #c44569); border: none; color: white;
       padding: 14px 30px; border-radius: 50px; font-size: 16px; font-weight: 600;
@@ -129,14 +119,12 @@
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('token');
 
-      // 判断模式：有token -> 接收方；无token -> 发起方
       if (token) {
         initReceiver(token);
       } else {
         initSender();
       }
 
-      // ========== 发起方（制作页面） ==========
       function initSender() {
         const container = document.getElementById('mainContainer');
         container.innerHTML = `
@@ -154,12 +142,6 @@
             <label class="message-label">💬 想对TA说的话（选填）</label>
             <textarea class="message-textarea" id="messageInput" placeholder="比如：对不起，那天是我太冲动了... 或者任何你想说的话" maxlength="200"></textarea>
             <div class="char-count"><span id="charCount">0</span>/200</div>
-          </div>
-
-          <div class="voice-section">
-            <label class="message-label">🎙️ 语音留言（选填，最长30秒）</label>
-            <button class="voice-btn" id="voiceBtn">🎤 按住录音</button>
-            <div class="voice-status" id="voiceStatus"></div>
           </div>
 
           <button class="btn" id="generateBtn" disabled>🔗 生成专属链接</button>
@@ -183,43 +165,10 @@
         const copyBtn = document.getElementById('copyBtn');
         const messageInput = document.getElementById('messageInput');
         const charCount = document.getElementById('charCount');
-        const voiceBtn = document.getElementById('voiceBtn');
-        const voiceStatus = document.getElementById('voiceStatus');
 
         let selectedFiles = [];
-        let voiceBase64 = null;
-        let mediaRecorder = null;
-        let audioChunks = [];
 
         messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
-
-        // 录音
-        voiceBtn.addEventListener('touchstart', startRec); voiceBtn.addEventListener('mousedown', startRec);
-        voiceBtn.addEventListener('touchend', stopRec); voiceBtn.addEventListener('mouseup', stopRec);
-        voiceBtn.addEventListener('touchcancel', stopRec); voiceBtn.addEventListener('mouseleave', stopRec);
-
-        function startRec(e) {
-          e.preventDefault();
-          if (!navigator.mediaDevices?.getUserMedia) { alert('浏览器不支持录音，请用文字留言'); return; }
-          navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-            mediaRecorder = new MediaRecorder(stream); audioChunks = [];
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-            mediaRecorder.onstop = () => {
-              const blob = new Blob(audioChunks, { type: 'audio/webm' });
-              const reader = new FileReader();
-              reader.onload = () => { voiceBase64 = reader.result; voiceStatus.textContent = '✅ 语音已录制 (' + Math.round(blob.size/1024) + 'KB)'; };
-              reader.readAsDataURL(blob);
-            };
-            mediaRecorder.start();
-            voiceBtn.classList.add('recording'); voiceBtn.textContent = '🎤 松开结束录音'; voiceStatus.textContent = '🔴 正在录音...';
-            setTimeout(() => { if (mediaRecorder?.state === 'recording') stopRec(); }, 30000);
-          }).catch(() => alert('无法访问麦克风，请用文字留言'));
-        }
-        function stopRec() {
-          if (mediaRecorder?.state === 'recording') { mediaRecorder.stop(); mediaRecorder.stream.getTracks().forEach(t => t.stop()); }
-          voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤 按住录音';
-          if (!voiceBase64) voiceStatus.textContent = '';
-        }
 
         uploadTrigger.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
@@ -237,20 +186,29 @@
 
         generateBtn.addEventListener('click', () => {
           if (!selectedFiles.length) return;
+          generateBtn.disabled = true;
+          generateBtn.textContent = '⏳ 生成中...';
+          
           const promises = selectedFiles.map(file => new Promise(resolve => {
             const reader = new FileReader();
             reader.onload = e => resolve(e.target.result);
             reader.readAsDataURL(file);
           }));
+          
           Promise.all(promises).then(images => {
             const token = 'capsule_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
             localStorage.setItem('capsule_' + token, JSON.stringify({
               images: images,
-              message: messageInput.value.trim() || null,
-              voice: voiceBase64 || null
+              message: messageInput.value.trim() || null
             }));
             const link = window.location.href.split('?')[0] + '?token=' + token;
-            resultLink.textContent = link; resultBox.style.display = 'block';
+            resultLink.textContent = link;
+            resultBox.style.display = 'block';
+            generateBtn.style.display = 'none';
+          }).catch(err => {
+            alert('生成失败，请重试');
+            generateBtn.disabled = false;
+            generateBtn.textContent = '🔗 生成专属链接';
           });
         });
 
@@ -265,13 +223,11 @@
         });
       }
 
-      // ========== 接收方（展示页面） ==========
       function initReceiver(token) {
         const container = document.getElementById('mainContainer');
         const KEY_USED = 'capsule_used_' + token;
         const KEY_DATA = 'capsule_' + token;
 
-        // 已使用
         if (localStorage.getItem(KEY_USED) === 'used') {
           container.innerHTML = `
             <div class="used-section" style="display:block;">
@@ -298,7 +254,6 @@
           container.innerHTML = `<h1>😔</h1><p class="error-text">链接无效</p>`; return;
         }
 
-        // 构建接收方界面
         container.innerHTML = `
           <div id="startSection">
             <h1>💊 你收到一颗和好胶囊</h1>
@@ -336,12 +291,11 @@
           </div>
         `;
 
-        const startSection = document.getElementById('startSection');
+        const startBtn = document.getElementById('startBtn');
         const messageSection = document.getElementById('messageSection');
         const filmSection = document.getElementById('filmSection');
         const couponSection = document.getElementById('couponSection');
         const usedSection = document.getElementById('usedSection');
-        const startBtn = document.getElementById('startBtn');
         const continueBtn = document.getElementById('continueBtn');
         const messageDisplay = document.getElementById('messageDisplay');
         const filmStrip = document.getElementById('filmStrip');
@@ -350,17 +304,15 @@
         const forgiveBtn = document.getElementById('forgiveBtn');
 
         const hasMsg = capsuleData.message?.trim().length > 0;
-        const hasVoice = capsuleData.voice?.length > 0;
 
         startBtn.addEventListener('click', () => {
-          if (hasMsg || hasVoice) {
-            startSection.style.display = 'none'; messageSection.style.display = 'block';
-            let html = '';
-            if (hasMsg) html += '<div class="message-content">' + capsuleData.message.replace(/\n/g, '<br>') + '</div>';
-            if (hasVoice) html += '<div style="margin-top:15px;"><audio controls src="' + capsuleData.voice + '" style="width:100%;"></audio></div>';
-            messageDisplay.innerHTML = html;
+          if (hasMsg) {
+            startBtn.parentElement.parentElement.style.display = 'none';
+            messageSection.style.display = 'block';
+            messageDisplay.innerHTML = '<div class="message-content">' + capsuleData.message.replace(/\n/g, '<br>') + '</div>';
           } else {
-            startSection.style.display = 'none'; playFilm();
+            startBtn.parentElement.parentElement.style.display = 'none';
+            playFilm();
           }
         });
 
