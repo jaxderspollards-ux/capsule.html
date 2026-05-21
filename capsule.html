@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>💊 和好胶囊</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #fce4ec 0%, #ffe0f0 50%, #f8d7e6 100%);
+      min-height: 100vh;
+      display: flex; justify-content: center; align-items: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 420px; width: 100%;
+      background: rgba(255,255,255,0.88); backdrop-filter: blur(20px);
+      border-radius: 40px; box-shadow: 0 25px 50px rgba(255,105,135,0.2);
+      padding: 30px 25px; text-align: center;
+    }
+    h1 { font-size: 24px; color: #d6336c; margin-bottom: 5px; font-weight: 700; }
+    .sub-title { font-size: 14px; color: #e6739f; margin-bottom: 20px; }
+
+    .upload-area {
+      border: 2px dashed #faa2c1; border-radius: 24px; padding: 30px 20px;
+      background: rgba(255,218,224,0.3); cursor: pointer; margin-bottom: 15px;
+    }
+    .upload-icon { font-size: 48px; margin-bottom: 10px; }
+    .upload-text { color: #d6336c; font-size: 15px; font-weight: 500; }
+    .preview-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 15px 0; }
+    .preview-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 12px; border: 2px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+    .message-section { margin: 20px 0; text-align: left; }
+    .message-label { font-size: 15px; color: #d6336c; font-weight: 600; margin-bottom: 8px; display: block; }
+    .message-textarea {
+      width: 100%; height: 100px; border: 2px solid #faa2c1; border-radius: 16px;
+      padding: 12px; font-size: 14px; color: #555; resize: none; outline: none;
+      font-family: inherit; background: rgba(255,255,255,0.8);
+    }
+    .char-count { font-size: 12px; color: #999; text-align: right; margin-top: 4px; }
+
+    .voice-section { margin: 15px 0; }
+    .voice-btn {
+      background: #fff; border: 2px solid #faa2c1; color: #d6336c;
+      padding: 10px 25px; border-radius: 50px; font-size: 15px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .voice-btn.recording { background: #ff6b9d; color: white; border-color: #ff6b9d; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+    .voice-status { font-size: 13px; color: #e6739f; margin-top: 8px; }
+
+    .btn {
+      background: linear-gradient(135deg, #ff6b9d, #c44569); border: none; color: white;
+      padding: 14px 30px; border-radius: 50px; font-size: 16px; font-weight: 600;
+      cursor: pointer; box-shadow: 0 8px 20px rgba(255,107,157,0.4);
+      width: 100%; margin-top: 10px;
+    }
+    .btn:disabled { background: #ccc; box-shadow: none; cursor: not-allowed; }
+    .result-box {
+      background: #f8f0f3; border-radius: 16px; padding: 20px; margin-top: 20px;
+      word-break: break-all; font-size: 13px; color: #555; display: none;
+    }
+    .result-link { color: #d6336c; font-weight: 600; }
+    .copy-btn { background: #d6336c; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-size: 14px; cursor: pointer; margin-top: 10px; }
+    .note { font-size: 12px; color: #999; margin-top: 20px; }
+
+    /* 接收方样式 */
+    .start-card {
+      background: linear-gradient(145deg, #fff5f8, #ffe0ec); border-radius: 30px;
+      padding: 30px 20px; margin: 20px 0; border: 2px solid #ffb3c6;
+    }
+    .start-emoji { font-size: 60px; margin-bottom: 15px; }
+    .start-desc { color: #666; font-size: 15px; margin: 15px 0; line-height: 1.6; }
+    .message-display {
+      background: linear-gradient(145deg, #fff5f8, #ffe0ec); border-radius: 24px;
+      padding: 25px 20px; margin: 20px 0; border: 2px solid #ffb3c6;
+    }
+    .message-content { font-size: 16px; color: #555; line-height: 1.8; font-style: italic; }
+    .film-viewer {
+      width: 100%; height: 300px; border-radius: 24px; background: #1a1a1a;
+      overflow: hidden; position: relative; margin: 20px 0;
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+    }
+    .film-viewer::before, .film-viewer::after {
+      content: ''; position: absolute; left: 0; width: 100%; height: 18px;
+      background: repeating-linear-gradient(90deg, #222 0px, #222 8px, transparent 8px, transparent 16px);
+      z-index: 5; pointer-events: none;
+    }
+    .film-viewer::before { top: 0; } .film-viewer::after { bottom: 0; }
+    .film-strip {
+      display: flex; height: 100%; align-items: center; position: absolute; top: 0; left: 0;
+      will-change: transform;
+    }
+    .film-strip img {
+      height: 85%; max-height: 250px; width: auto; margin: 0 8px;
+      border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      border: 2px solid #ffd1dc; background: #fff; object-fit: cover; min-width: 160px;
+    }
+    .coupon-section { display: none; animation: fadeInUp 0.6s ease; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    .coupon-card {
+      background: linear-gradient(145deg, #fff5f8, #ffe0ec); border-radius: 30px;
+      padding: 30px 20px; margin: 20px 0; border: 2px solid #ffb3c6;
+      box-shadow: 0 15px 30px rgba(255,105,135,0.2);
+    }
+    .coupon-title { font-size: 24px; color: #d6336c; font-weight: 700; margin-bottom: 10px; }
+    .coupon-desc { font-size: 15px; color: #555; margin-bottom: 25px; }
+    .forgive-btn {
+      background: #ff4d6d; font-size: 18px; padding: 15px 35px; border: none; color: white;
+      border-radius: 50px; font-weight: 600; letter-spacing: 1px; cursor: pointer;
+      box-shadow: 0 8px 20px rgba(255,77,109,0.4); animation: pulse 1.8s infinite;
+      width: 80%; margin: 0 auto;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(255,77,109,0.5); }
+      70% { box-shadow: 0 0 0 15px rgba(255,77,109,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,77,109,0); }
+    }
+    .used-section { display: none; } .used-icon { font-size: 70px; margin-bottom: 15px; }
+    .error-text { color: #999; font-size: 14px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="container" id="mainContainer"></div>
+
+  <script>
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+
+      // 判断模式：有token -> 接收方；无token -> 发起方
+      if (token) {
+        initReceiver(token);
+      } else {
+        initSender();
+      }
+
+      // ========== 发起方（制作页面） ==========
+      function initSender() {
+        const container = document.getElementById('mainContainer');
+        container.innerHTML = `
+          <h1>📸 准备你们的回忆</h1>
+          <p class="sub-title">选几张照片，说几句心里话，剩下的交给胶囊</p>
+
+          <div class="upload-area" id="uploadTrigger">
+            <div class="upload-icon">🖼️</div>
+            <div class="upload-text">点击这里选择照片 (2-8张)</div>
+          </div>
+          <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+          <div class="preview-list" id="previewContainer"></div>
+
+          <div class="message-section">
+            <label class="message-label">💬 想对TA说的话（选填）</label>
+            <textarea class="message-textarea" id="messageInput" placeholder="比如：对不起，那天是我太冲动了... 或者任何你想说的话" maxlength="200"></textarea>
+            <div class="char-count"><span id="charCount">0</span>/200</div>
+          </div>
+
+          <div class="voice-section">
+            <label class="message-label">🎙️ 语音留言（选填，最长30秒）</label>
+            <button class="voice-btn" id="voiceBtn">🎤 按住录音</button>
+            <div class="voice-status" id="voiceStatus"></div>
+          </div>
+
+          <button class="btn" id="generateBtn" disabled>🔗 生成专属链接</button>
+
+          <div class="result-box" id="resultBox">
+            <p>✅ 专属和好胶囊已生成！</p>
+            <p>把下面这个链接发给TA：</p>
+            <p class="result-link" id="resultLink"></p>
+            <button class="copy-btn" id="copyBtn">📋 一键复制链接</button>
+          </div>
+
+          <p class="note">💡 所有数据都在你们自己的链接里，绝对隐私</p>
+        `;
+
+        const fileInput = document.getElementById('fileInput');
+        const uploadTrigger = document.getElementById('uploadTrigger');
+        const previewContainer = document.getElementById('previewContainer');
+        const generateBtn = document.getElementById('generateBtn');
+        const resultBox = document.getElementById('resultBox');
+        const resultLink = document.getElementById('resultLink');
+        const copyBtn = document.getElementById('copyBtn');
+        const messageInput = document.getElementById('messageInput');
+        const charCount = document.getElementById('charCount');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const voiceStatus = document.getElementById('voiceStatus');
+
+        let selectedFiles = [];
+        let voiceBase64 = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
+
+        // 录音
+        voiceBtn.addEventListener('touchstart', startRec); voiceBtn.addEventListener('mousedown', startRec);
+        voiceBtn.addEventListener('touchend', stopRec); voiceBtn.addEventListener('mouseup', stopRec);
+        voiceBtn.addEventListener('touchcancel', stopRec); voiceBtn.addEventListener('mouseleave', stopRec);
+
+        function startRec(e) {
+          e.preventDefault();
+          if (!navigator.mediaDevices?.getUserMedia) { alert('浏览器不支持录音，请用文字留言'); return; }
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            mediaRecorder = new MediaRecorder(stream); audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+              const blob = new Blob(audioChunks, { type: 'audio/webm' });
+              const reader = new FileReader();
+              reader.onload = () => { voiceBase64 = reader.result; voiceStatus.textContent = '✅ 语音已录制 (' + Math.round(blob.size/1024) + 'KB)'; };
+              reader.readAsDataURL(blob);
+            };
+            mediaRecorder.start();
+            voiceBtn.classList.add('recording'); voiceBtn.textContent = '🎤 松开结束录音'; voiceStatus.textContent = '🔴 正在录音...';
+            setTimeout(() => { if (mediaRecorder?.state === 'recording') stopRec(); }, 30000);
+          }).catch(() => alert('无法访问麦克风，请用文字留言'));
+        }
+        function stopRec() {
+          if (mediaRecorder?.state === 'recording') { mediaRecorder.stop(); mediaRecorder.stream.getTracks().forEach(t => t.stop()); }
+          voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤 按住录音';
+          if (!voiceBase64) voiceStatus.textContent = '';
+        }
+
+        uploadTrigger.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          const files = Array.from(e.target.files);
+          if (!files.length) return;
+          selectedFiles = files.slice(0, 8);
+          previewContainer.innerHTML = '';
+          selectedFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = e => { const img = document.createElement('img'); img.src = e.target.result; img.className = 'preview-thumb'; previewContainer.appendChild(img); };
+            reader.readAsDataURL(file);
+          });
+          generateBtn.disabled = false;
+        });
+
+        generateBtn.addEventListener('click', () => {
+          if (!selectedFiles.length) return;
+          const promises = selectedFiles.map(file => new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.readAsDataURL(file);
+          }));
+          Promise.all(promises).then(images => {
+            const token = 'capsule_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            localStorage.setItem('capsule_' + token, JSON.stringify({
+              images: images,
+              message: messageInput.value.trim() || null,
+              voice: voiceBase64 || null
+            }));
+            const link = window.location.href.split('?')[0] + '?token=' + token;
+            resultLink.textContent = link; resultBox.style.display = 'block';
+          });
+        });
+
+        copyBtn.addEventListener('click', () => {
+          const text = resultLink.textContent;
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => alert('链接已复制！快去发给TA吧 💕'));
+          } else {
+            const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+            alert('链接已复制！快去发给TA吧 💕');
+          }
+        });
+      }
+
+      // ========== 接收方（展示页面） ==========
+      function initReceiver(token) {
+        const container = document.getElementById('mainContainer');
+        const KEY_USED = 'capsule_used_' + token;
+        const KEY_DATA = 'capsule_' + token;
+
+        // 已使用
+        if (localStorage.getItem(KEY_USED) === 'used') {
+          container.innerHTML = `
+            <div class="used-section" style="display:block;">
+              <div class="used-icon">🌸</div>
+              <h1>和好成功！</h1>
+              <p style="color:#666; margin: 15px 0;">这份回忆和好券已经被珍藏<br>你们已经和好如初啦 💕</p>
+              <p style="font-size: 14px; color: #999;">往后的日子，也要彼此珍惜</p>
+            </div>
+          `;
+          return;
+        }
+
+        const raw = localStorage.getItem(KEY_DATA);
+        if (!raw) {
+          container.innerHTML = `<h1>😔</h1><p class="error-text">这个链接好像不太对<br>可能已经过期或者无效了</p>`;
+          return;
+        }
+
+        let capsuleData;
+        try { capsuleData = JSON.parse(raw); } catch(e) {
+          container.innerHTML = `<h1>😔</h1><p class="error-text">链接无效</p>`; return;
+        }
+        if (!capsuleData.images?.length) {
+          container.innerHTML = `<h1>😔</h1><p class="error-text">链接无效</p>`; return;
+        }
+
+        // 构建接收方界面
+        container.innerHTML = `
+          <div id="startSection">
+            <h1>💊 你收到一颗和好胶囊</h1>
+            <div class="start-card">
+              <div class="start-emoji">🕊️</div>
+              <div class="start-desc">TA 用心准备了这份回忆，<br>希望能和你重新开始。<br>准备好了吗？</div>
+              <button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button>
+            </div>
+          </div>
+          <div id="messageSection" style="display:none;">
+            <h1>💌 TA想对你说...</h1>
+            <div class="message-display" id="messageDisplay"></div>
+            <button class="btn" id="continueBtn">📽️ 继续，看看回忆</button>
+          </div>
+          <div id="filmSection" style="display:none;">
+            <h1>🎞️ 属于你们的回忆</h1>
+            <div class="film-viewer" id="filmViewer">
+              <div class="film-strip" id="filmStrip"></div>
+            </div>
+            <p class="sub-title" id="filmHint">回忆缓缓展开...</p>
+          </div>
+          <div id="couponSection" class="coupon-section">
+            <h1>💊 和好胶囊</h1>
+            <div class="coupon-card">
+              <div class="coupon-title">专属和好券</div>
+              <div class="coupon-desc">看完我们的回忆，<br>你愿意给彼此一个重新开始的机会吗？</div>
+              <button class="forgive-btn" id="forgiveBtn">💖 原谅TA，点击和好</button>
+            </div>
+          </div>
+          <div id="usedSection" class="used-section" style="display:none;">
+            <div class="used-icon">🌸</div>
+            <h1>和好成功！</h1>
+            <p style="color:#666; margin: 15px 0;">这份回忆和好券已经被珍藏<br>你们已经和好如初啦 💕</p>
+            <p style="font-size: 14px; color: #999;">往后的日子，也要彼此珍惜</p>
+          </div>
+        `;
+
+        const startSection = document.getElementById('startSection');
+        const messageSection = document.getElementById('messageSection');
+        const filmSection = document.getElementById('filmSection');
+        const couponSection = document.getElementById('couponSection');
+        const usedSection = document.getElementById('usedSection');
+        const startBtn = document.getElementById('startBtn');
+        const continueBtn = document.getElementById('continueBtn');
+        const messageDisplay = document.getElementById('messageDisplay');
+        const filmStrip = document.getElementById('filmStrip');
+        const filmViewer = document.getElementById('filmViewer');
+        const filmHint = document.getElementById('filmHint');
+        const forgiveBtn = document.getElementById('forgiveBtn');
+
+        const hasMsg = capsuleData.message?.trim().length > 0;
+        const hasVoice = capsuleData.voice?.length > 0;
+
+        startBtn.addEventListener('click', () => {
+          if (hasMsg || hasVoice) {
+            startSection.style.display = 'none'; messageSection.style.display = 'block';
+            let html = '';
+            if (hasMsg) html += '<div class="message-content">' + capsuleData.message.replace(/\n/g, '<br>') + '</div>';
+            if (hasVoice) html += '<div style="margin-top:15px;"><audio controls src="' + capsuleData.voice + '" style="width:100%;"></audio></div>';
+            messageDisplay.innerHTML = html;
+          } else {
+            startSection.style.display = 'none'; playFilm();
+          }
+        });
+
+        continueBtn.addEventListener('click', () => { messageSection.style.display = 'none'; playFilm(); });
+
+        function playFilm() {
+          filmSection.style.display = 'block';
+          const images = capsuleData.images;
+          const imgEls = [];
+          images.forEach(src => {
+            const img = document.createElement('img'); img.src = src; img.style.display = 'block';
+            filmStrip.appendChild(img); imgEls.push(img);
+          });
+          let loaded = 0;
+          const total = imgEls.length;
+          function onLoad() { loaded++; if (loaded >= total) setTimeout(startAnim, 100); }
+          imgEls.forEach(img => { if (img.complete) onLoad(); else { img.addEventListener('load', onLoad); img.addEventListener('error', onLoad); } });
+          setTimeout(() => { if (loaded < total) { loaded = total; startAnim(); } }, 3000);
+        }
+
+        function startAnim() {
+          const sw = filmStrip.scrollWidth;
+          const vw = filmViewer.clientWidth;
+          if (!sw || !vw) { setTimeout(startAnim, 200); return; }
+          const cnt = capsuleData.images.length;
+          let dur = cnt * 2.5; if (dur < 8) dur = 8; if (dur > 25) dur = 25;
+          filmStrip.style.transition = 'none'; filmStrip.style.transform = 'translateX(' + vw + 'px)';
+          filmStrip.offsetHeight;
+          filmHint.textContent = '回忆缓缓展开，那些美好从未离开...';
+          filmStrip.style.transition = 'transform ' + dur + 's linear';
+          filmStrip.style.transform = 'translateX(-' + sw + 'px)';
+          setTimeout(() => { filmSection.style.display = 'none'; couponSection.style.display = 'block'; }, dur * 1000 + 500);
+        }
+
+        forgiveBtn.addEventListener('click', () => {
+          localStorage.setItem(KEY_USED, 'used');
+          couponSection.style.display = 'none'; usedSection.style.display = 'block';
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
