@@ -22,6 +22,13 @@
     h1 { font-size: 24px; color: #d6336c; margin-bottom: 5px; font-weight: 700; }
     .sub-title { font-size: 14px; color: #e6739f; margin-bottom: 20px; }
 
+    .input-field {
+      width: 100%; padding: 14px 20px; border: 2px solid #faa2c1; border-radius: 50px;
+      font-size: 16px; text-align: center; color: #d6336c; background: #fff;
+      outline: none; margin-bottom: 15px;
+    }
+    .input-field:focus { border-color: #ff6b9d; }
+
     .upload-area {
       border: 2px dashed #faa2c1; border-radius: 24px; padding: 30px 20px;
       background: rgba(255,218,224,0.3); cursor: pointer; margin-bottom: 15px;
@@ -40,6 +47,11 @@
     }
     .char-count { font-size: 12px; color: #999; text-align: right; margin-top: 4px; }
 
+    .select-field {
+      width: 100%; padding: 12px 20px; border: 2px solid #faa2c1; border-radius: 50px;
+      font-size: 15px; color: #d6336c; background: #fff; outline: none; margin-bottom: 15px;
+    }
+
     .btn {
       background: linear-gradient(135deg, #ff6b9d, #c44569); border: none; color: white;
       padding: 14px 30px; border-radius: 50px; font-size: 16px; font-weight: 600;
@@ -53,8 +65,12 @@
 <body>
   <div class="container" id="mainContainer">
     <h1>📸 制作和好胶囊</h1>
-    <p class="sub-title">选照片、写心里话，生成一个能发给TA的胶囊文件</p>
+    <p class="sub-title">定制一份专属于你们的回忆</p>
 
+    <!-- 昵称 -->
+    <input type="text" class="input-field" id="nicknameInput" placeholder="💝 你的昵称（会让对方知道是谁）" maxlength="20">
+
+    <!-- 照片上传 -->
     <div class="upload-area" id="uploadTrigger">
       <div class="upload-icon">🖼️</div>
       <div class="upload-text">点击选择照片 (2-8张)</div>
@@ -62,11 +78,26 @@
     <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
     <div class="preview-list" id="previewContainer"></div>
 
+    <!-- 文字留言 -->
     <div class="message-section">
       <label class="message-label">💬 想对TA说的话（选填）</label>
       <textarea class="message-textarea" id="messageInput" placeholder="对不起，那天是我太冲动了..." maxlength="200"></textarea>
       <div class="char-count"><span id="charCount">0</span>/200</div>
     </div>
+
+    <!-- 背景音乐 -->
+    <label class="message-label">🎵 选择背景音乐</label>
+    <select class="select-field" id="musicSelect">
+      <option value="none">🔇 无音乐</option>
+      <option value="melody1" selected>🎹 舒缓钢琴 · 回忆</option>
+      <option value="melody2">🎻 温暖弦乐 · 守候</option>
+      <option value="melody3">🎧 轻柔吉他 · 告白</option>
+    </select>
+
+    <!-- 记忆问答 -->
+    <label class="message-label">❓ 设置一个只有TA知道答案的问题（选填）</label>
+    <input type="text" class="input-field" id="questionInput" placeholder="比如：我们第一次约会是在哪里？" maxlength="100">
+    <input type="text" class="input-field" id="answerInput" placeholder="答案（对方需输入正确才能看到原谅按钮）" maxlength="50">
 
     <button class="btn" id="generateBtn" disabled>🎁 生成胶囊文件</button>
     <p class="note">💡 文件将保存在你的手机，发给TA即可，无需网络也能看</p>
@@ -79,6 +110,10 @@
     const generateBtn = document.getElementById('generateBtn');
     const messageInput = document.getElementById('messageInput');
     const charCount = document.getElementById('charCount');
+    const nicknameInput = document.getElementById('nicknameInput');
+    const musicSelect = document.getElementById('musicSelect');
+    const questionInput = document.getElementById('questionInput');
+    const answerInput = document.getElementById('answerInput');
 
     let selectedFiles = [];
 
@@ -121,10 +156,14 @@
         imagesBase64.push(dataUrl);
       }
 
+      const nickname = nicknameInput.value.trim() || 'TA';
       const message = messageInput.value.trim();
-      const capsuleHTML = generateCapsuleHTML(imagesBase64, message);
+      const music = musicSelect.value;
+      const question = questionInput.value.trim();
+      const answer = answerInput.value.trim();
 
-      // 创建下载链接
+      const capsuleHTML = generateCapsuleHTML(imagesBase64, nickname, message, music, question, answer);
+
       const blob = new Blob([capsuleHTML], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -136,12 +175,15 @@
       URL.revokeObjectURL(url);
 
       generateBtn.textContent = '✅ 胶囊已下载，快去发给TA';
-      generateBtn.disabled = true;
     });
 
-    function generateCapsuleHTML(images, message) {
+    function generateCapsuleHTML(images, nickname, message, music, question, answer) {
       const imagesJson = JSON.stringify(images);
+      const escapedNickname = nickname.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const escapedMessage = message.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+      const escapedQuestion = question.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const escapedAnswer = answer.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
       return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -163,6 +205,11 @@
       border-radius: 40px; box-shadow: 0 25px 50px rgba(255,105,135,0.2);
       padding: 30px 25px; text-align: center;
     }
+    .nickname-bar {
+      background: linear-gradient(135deg, #ffd1dc, #ffe0ec);
+      border-radius: 20px; padding: 10px 20px; margin-bottom: 20px;
+      font-size: 14px; color: #d6336c; font-weight: 600;
+    }
     h1 { font-size: 24px; color: #d6336c; margin-bottom: 5px; font-weight: 700; }
     .sub-title { font-size: 14px; color: #e6739f; margin-bottom: 20px; }
 
@@ -179,26 +226,28 @@
     }
     .message-content { font-size: 16px; color: #555; line-height: 1.8; font-style: italic; }
 
-    .film-viewer {
-      width: 100%; height: 300px; border-radius: 24px; background: #1a1a1a;
+    .slideshow-viewer {
+      width: 100%; height: 320px; border-radius: 24px; background: #1a1a1a;
       overflow: hidden; position: relative; margin: 20px 0;
       box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+      display: flex; justify-content: center; align-items: center;
     }
-    .film-viewer::before, .film-viewer::after {
-      content: ''; position: absolute; left: 0; width: 100%; height: 18px;
-      background: repeating-linear-gradient(90deg, #222 0px, #222 8px, transparent 8px, transparent 16px);
-      z-index: 5; pointer-events: none;
+    .slideshow-viewer img {
+      position: absolute; width: 90%; height: auto; max-height: 280px;
+      object-fit: contain; border-radius: 12px;
+      border: 2px solid #ffd1dc; background: #fff;
+      transition: opacity 1.2s ease-in-out;
+      opacity: 0;
     }
-    .film-viewer::before { top: 0; } .film-viewer::after { bottom: 0; }
-    .film-strip {
-      display: flex; height: 100%; align-items: center; position: absolute; top: 0; left: 0;
-      will-change: transform;
+    .slideshow-viewer img.active { opacity: 1; }
+
+    .quiz-section { margin: 20px 0; }
+    .quiz-input {
+      width: 80%; padding: 12px 20px; border: 2px solid #faa2c1; border-radius: 50px;
+      font-size: 16px; text-align: center; color: #d6336c; background: #fff;
+      outline: none; margin: 10px auto; display: block;
     }
-    .film-strip img {
-      height: 85%; max-height: 250px; width: auto; margin: 0 8px;
-      border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-      border: 2px solid #ffd1dc; background: #fff; object-fit: cover; min-width: 160px;
-    }
+    .quiz-error { color: #e03131; font-size: 13px; margin-top: 5px; display: none; }
 
     .coupon-card {
       background: linear-gradient(145deg, #fff5f8, #ffe0ec); border-radius: 30px;
@@ -231,112 +280,149 @@
   </style>
 </head>
 <body>
-  <div class="container" id="mainContainer"></div>
+  <div class="container" id="mainContainer">
+    <div class="nickname-bar">💝 ${escapedNickname} 为你准备的胶囊</div>
+    <div id="contentArea"></div>
+  </div>
+
   <script>
     (function() {
       const images = ${imagesJson};
+      const nickname = '${escapedNickname}';
       const message = '${escapedMessage}';
+      const music = '${music}';
+      const question = '${escapedQuestion}';
+      const answer = '${escapedAnswer}';
       const hasMsg = message.length > 0;
+      const hasQuiz = question.length > 0 && answer.length > 0;
       const KEY_USED = 'capsule_forgiven';
       const isForgiven = localStorage.getItem(KEY_USED) === 'used';
-      
-      const container = document.getElementById('mainContainer');
-      
-      if (isForgiven) {
-        // 已经原谅过了，直接展示回忆，不再显示按钮
-        container.innerHTML = buildContent(true);
-        playFilm();
-      } else {
-        container.innerHTML = '<div id="startSection"><h1>💊 你收到一颗和好胶囊</h1><div class="start-card"><div class="start-emoji">🕊️</div><div class="start-desc">TA 用心准备了这份回忆，<br>希望能和你重新开始。<br>准备好了吗？</div><button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button></div></div>' + '<div id="contentSection" style="display:none;">' + buildContent(false) + '</div>';
+
+      const contentArea = document.getElementById('contentArea');
+      let currentStep = isForgiven ? 'forgiven' : 'start';
+      let audioCtx = null;
+      let musicPlaying = false;
+
+      // ===== 音乐引擎 =====
+      function startMusic() {
+        if (music === 'none' || musicPlaying) return;
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const notes = {
+            melody1: [523,659,784,1047,784,659,523,440,523,659,784,659,523,440,392,440,523,392,440,523,659,523,440,392,330,392,440],
+            melody2: [392,440,523,392,440,523,659,523,440,392,330,392,440,330,392,440,523,440,392,330,294,330,392],
+            melody3: [330,392,440,523,440,392,330,294,330,392,440,392,330,294,262,294,330,392,330,294,262,247,262]
+          }[music] || [];
+          let noteIndex = 0;
+          function playNote() {
+            if (!audioCtx || music === 'none') return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = notes[noteIndex % notes.length];
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 1.5);
+            noteIndex++;
+          }
+          playNote();
+          musicPlaying = true;
+          window._musicInterval = setInterval(playNote, 2200);
+        } catch(e) {}
+      }
+      function stopMusic() {
+        if (window._musicInterval) { clearInterval(window._musicInterval); window._musicInterval = null; }
+        if (audioCtx) { audioCtx.close(); audioCtx = null; }
+        musicPlaying = false;
+      }
+
+      // ===== 幻影灯播放 =====
+      function startSlideshow(callback) {
+        const slideshowHTML = '<div class="slideshow-viewer" id="slideshowViewer">' + images.map(function(src, i) {
+          return '<img src="' + src + '" class="' + (i === 0 ? 'active' : '') + '">';
+        }).join('') + '</div><p class="sub-title" id="slideshowHint">回忆缓缓展开...</p>';
+        contentArea.innerHTML = slideshowHTML;
+        startMusic();
+
+        const imgs = document.querySelectorAll('.slideshow-viewer img');
+        const hint = document.getElementById('slideshowHint');
+        let current = 0;
+        const total = imgs.length;
+        const phrases = ['这些画面，你还记得吗...', '每一个瞬间，都是真的...', '回忆不会说谎...', '那时候的我们，多好啊...', 'TA一直记得...'];
+
+        function nextSlide() {
+          imgs[current].classList.remove('active');
+          current++;
+          if (current < total) {
+            imgs[current].classList.add('active');
+            if (hint && phrases[current-1]) hint.textContent = phrases[current-1];
+            window._slideTimer = setTimeout(nextSlide, 3500);
+          } else {
+            if (hint) hint.textContent = '回忆播完了，但那些美好从未离开';
+            stopMusic();
+            if (callback) setTimeout(callback, 800);
+          }
+        }
+        window._slideTimer = setTimeout(nextSlide, 3500);
+      }
+
+      // ===== 问答环节 =====
+      function showQuiz(callback) {
+        contentArea.innerHTML = '<h1>❓ 在原谅之前...</h1><p style="color:#666;margin:15px 0;">' + question + '</p><input type="text" class="quiz-input" id="quizAnswer" placeholder="请输入你的答案"><p class="quiz-error" id="quizError">答案不对哦，再想想 💭</p><button class="btn" id="quizBtn">✅ 确认答案</button>';
+        document.getElementById('quizBtn').addEventListener('click', function() {
+          const userAnswer = document.getElementById('quizAnswer').value.trim();
+          if (userAnswer === answer) {
+            document.getElementById('quizError').style.display = 'none';
+            if (callback) callback();
+          } else {
+            document.getElementById('quizError').style.display = 'block';
+          }
+        });
+      }
+
+      // ===== 和好券 =====
+      function showCoupon() {
+        contentArea.innerHTML = '<h1>💊 和好胶囊</h1><div class="coupon-card"><div class="coupon-title">专属和好券</div><div class="coupon-desc">看完我们的回忆，<br>你愿意给彼此一个重新开始的机会吗？</div><button class="forgive-btn" id="forgiveBtn">💖 原谅TA，点击和好</button></div>';
+        document.getElementById('forgiveBtn').addEventListener('click', function() {
+          localStorage.setItem(KEY_USED, 'used');
+          contentArea.innerHTML = '<h1>🌸</h1><div class="forgiven-msg">和好成功！<br>你们已经和好如初啦 💕</div><p style="color:#666;margin-top:15px;">这份回忆将永远为你留存</p>';
+          stopMusic();
+        });
+      }
+
+      // ===== 主流程 =====
+      function buildStart() {
+        contentArea.innerHTML = '<h1>💊 你收到一颗和好胶囊</h1><div class="start-card"><div class="start-emoji">🕊️</div><div class="start-desc">' + nickname + ' 用心准备了这份回忆，<br>希望能和你重新开始。<br>准备好了吗？</div><button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button></div>';
         document.getElementById('startBtn').addEventListener('click', function() {
-          document.getElementById('startSection').style.display = 'none';
-          document.getElementById('contentSection').style.display = 'block';
-          initContent(false);
-        });
-      }
-      
-      function buildContent(forgiven) {
-        let html = '';
-        if (hasMsg) {
-          html += '<div id="messageSection"><h1>💌 TA想对你说...</h1><div class="message-display"><div class="message-content">' + message.replace(/\\n/g, '<br>') + '</div></div><button class="btn" id="continueBtn">📽️ 继续，看看回忆</button></div>';
-        }
-        html += '<div id="filmSection" style="display:' + (hasMsg ? 'none' : 'block') + ';"><h1>🎞️ 属于你们的回忆</h1><div class="film-viewer" id="filmViewer"><div class="film-strip" id="filmStrip"></div></div><p class="sub-title" id="filmHint">' + (forgiven ? '这份回忆将永远留存 💕' : '回忆缓缓展开...') + '</p></div>';
-        if (!forgiven) {
-          html += '<div id="couponSection" style="display:none;"><h1>💊 和好胶囊</h1><div class="coupon-card"><div class="coupon-title">专属和好券</div><div class="coupon-desc">看完我们的回忆，<br>你愿意给彼此一个重新开始的机会吗？</div><button class="forgive-btn" id="forgiveBtn">💖 原谅TA，点击和好</button></div></div>';
-        } else {
-          html += '<div class="forgiven-msg">🌸 你们已经和好如初啦</div>';
-        }
-        return html;
-      }
-      
-      function playFilm() {
-        const filmStrip = document.getElementById('filmStrip');
-        if (!filmStrip || filmStrip.children.length > 0) return;
-        images.forEach(function(src) {
-          const img = document.createElement('img');
-          img.src = src;
-          filmStrip.appendChild(img);
-        });
-        let loaded = 0;
-        const imgs = filmStrip.querySelectorAll('img');
-        imgs.forEach(function(img) {
-          if (img.complete) loaded++;
-          else {
-            img.addEventListener('load', function() { loaded++; if (loaded === imgs.length) startAnim(); });
-            img.addEventListener('error', function() { loaded++; if (loaded === imgs.length) startAnim(); });
+          if (hasMsg) {
+            contentArea.innerHTML = '<h1>💌 ' + nickname + ' 想对你说...</h1><div class="message-display"><div class="message-content">' + message.replace(/\\n/g, '<br>') + '</div></div><button class="btn" id="continueBtn">📽️ 继续，看看回忆</button>';
+            document.getElementById('continueBtn').addEventListener('click', function() {
+              startSlideshow(function() {
+                if (hasQuiz) { showQuiz(showCoupon); }
+                else { showCoupon(); }
+              });
+            });
+          } else {
+            startSlideshow(function() {
+              if (hasQuiz) { showQuiz(showCoupon); }
+              else { showCoupon(); }
+            });
           }
         });
-        if (loaded === imgs.length) startAnim();
-        setTimeout(function() { if (loaded < imgs.length) { loaded = imgs.length; startAnim(); } }, 3000);
       }
-      
-      function startAnim() {
-        const filmStrip = document.getElementById('filmStrip');
-        const filmViewer = document.getElementById('filmViewer');
-        if (!filmStrip || !filmViewer) return;
-        const sw = filmStrip.scrollWidth;
-        const vw = filmViewer.clientWidth;
-        if (!sw || !vw) { setTimeout(startAnim, 200); return; }
-        let dur = images.length * 2.5;
-        if (dur < 8) dur = 8;
-        if (dur > 25) dur = 25;
-        filmStrip.style.transition = 'none';
-        filmStrip.style.transform = 'translateX(' + vw + 'px)';
-        filmStrip.offsetHeight;
-        const filmHint = document.getElementById('filmHint');
-        if (filmHint && !isForgiven) filmHint.textContent = '回忆缓缓展开，那些美好从未离开...';
-        filmStrip.style.transition = 'transform ' + dur + 's linear';
-        filmStrip.style.transform = 'translateX(-' + sw + 'px)';
-        setTimeout(function() {
-          if (!isForgiven) {
-            const couponSection = document.getElementById('couponSection');
-            if (couponSection) couponSection.style.display = 'block';
-          }
-        }, dur * 1000 + 500);
+
+      if (isForgiven) {
+        contentArea.innerHTML = '<h1>🌸</h1><div class="forgiven-msg">你们已经和好如初啦 💕</div><p style="color:#666;margin-top:15px;">这份回忆将永远为你留存</p>';
+      } else {
+        buildStart();
       }
-      
-      function initContent(forgiven) {
-        if (hasMsg) {
-          document.getElementById('continueBtn').addEventListener('click', function() {
-            document.getElementById('messageSection').style.display = 'none';
-            document.getElementById('filmSection').style.display = 'block';
-            playFilm();
-          });
-        } else {
-          playFilm();
-        }
-        if (!forgiven) {
-          document.getElementById('forgiveBtn').addEventListener('click', function() {
-            localStorage.setItem(KEY_USED, 'used');
-            document.getElementById('couponSection').style.display = 'none';
-            document.getElementById('filmHint').textContent = '这份回忆将永远留存 💕';
-            const msg = document.createElement('div');
-            msg.className = 'forgiven-msg';
-            msg.textContent = '🌸 你们已经和好如初啦';
-            document.getElementById('filmSection').appendChild(msg);
-          });
-        }
-      }
+
+      window.addEventListener('beforeunload', function() {
+        stopMusic();
+        if (window._slideTimer) clearTimeout(window._slideTimer);
+      });
     })();
   <\/script>
 </body>
