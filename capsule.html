@@ -25,6 +25,14 @@
     h1 { font-size: 24px; color: #d6336c; margin-bottom: 5px; font-weight: 700; }
     .sub-title { font-size: 14px; color: #e6739f; margin-bottom: 20px; }
 
+    .password-input {
+      width: 100%; padding: 14px 20px; border: 2px solid #faa2c1; border-radius: 50px;
+      font-size: 16px; text-align: center; color: #d6336c; background: #fff;
+      outline: none; margin-bottom: 15px;
+    }
+    .password-input:focus { border-color: #ff6b9d; }
+    .error-msg { color: #e03131; font-size: 14px; margin-top: 10px; display: none; }
+
     .input-field {
       width: 100%; padding: 14px 20px; border: 2px solid #faa2c1; border-radius: 50px;
       font-size: 16px; text-align: center; color: #d6336c; background: #fff;
@@ -87,7 +95,6 @@
     }
     .status-text { font-size: 13px; color: #e6739f; margin: 8px 0; }
 
-    /* 接收方样式（与之前相同，保持不变） */
     .nickname-bar {
       background: linear-gradient(135deg, #ffd1dc, #ffe0ec);
       border-radius: 20px; padding: 10px 20px; margin-bottom: 20px;
@@ -158,6 +165,10 @@
   <div class="container" id="mainContainer"></div>
 
   <script>
+    // ========== 🔑 当前有效密码（改这里即可） ==========
+    const CURRENT_PASSWORD = 'hehao2024';
+    // ==================================================
+
     const firebaseConfig = {
       databaseURL: "https://sorry-capsule-default-rtdb.firebaseio.com"
     };
@@ -170,10 +181,38 @@
     if (token) {
       initReceiver(token);
     } else {
-      initSender();
+      initPasswordGate();
     }
 
-    // ========== 图片压缩（保持不变） ==========
+    // ========== 密码验证门（极简版） ==========
+    function initPasswordGate() {
+      const container = document.getElementById('mainContainer');
+
+      container.innerHTML = `
+        <h1>🔐 验证你的胶囊</h1>
+        <p class="sub-title">请输入购买后获得的专属密码</p>
+        <input type="password" class="password-input" id="passwordInput" placeholder="请输入密码">
+        <p class="error-msg" id="errorMsg">❌ 密码错误</p>
+        <button class="btn" id="verifyBtn">🔓 验证进入</button>
+        <p class="note">💡 密码由卖家提供，请勿外传</p>
+      `;
+
+      document.getElementById('verifyBtn').addEventListener('click', () => {
+        const inputPwd = document.getElementById('passwordInput').value.trim();
+        if (inputPwd === CURRENT_PASSWORD) {
+          initSender();
+        } else {
+          document.getElementById('errorMsg').style.display = 'block';
+          document.getElementById('passwordInput').value = '';
+        }
+      });
+
+      document.getElementById('passwordInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('verifyBtn').click();
+      });
+    }
+
+    // ========== 图片压缩 ==========
     function compressImage(file, maxWidth = 600, quality = 0.6) {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -260,14 +299,12 @@
       let audioCtx = null;
       let previewInterval = null;
 
-      // 检查昵称和照片数量，决定按钮是否可点
       function checkGenerateBtn() {
         const nicknameFilled = nicknameInput.value.trim().length > 0;
         const photosValid = selectedFiles.length >= 2;
         generateBtn.disabled = !(nicknameFilled && photosValid);
       }
 
-      // 监听昵称输入
       nicknameInput.addEventListener('input', checkGenerateBtn);
 
       messageInput.addEventListener('input', () => {
@@ -281,7 +318,6 @@
         selectedFiles = files.slice(0, 100);
         uploadCount.textContent = '已选 ' + selectedFiles.length + ' 张';
         
-        // 预览前20张
         previewGrid.innerHTML = '';
         const previewCount = Math.min(selectedFiles.length, 20);
         for (let i = 0; i < previewCount; i++) {
@@ -304,7 +340,6 @@
         checkGenerateBtn();
       });
 
-      // 音乐试听（保持不变）
       function stopPreview() {
         if (previewInterval) { clearInterval(previewInterval); previewInterval = null; }
         if (audioCtx) { audioCtx.close(); audioCtx = null; }
@@ -370,7 +405,12 @@
 
         const newRef = db.ref('capsules').push();
         await newRef.set(capsuleData);
-        const link = window.location.href.split('?')[0] + '?token=' + newRef.key;
+        const token = newRef.key;
+        const link = window.location.href.split('?')[0] + '?token=' + token;
+
+        let createdTokens = JSON.parse(localStorage.getItem('created_tokens') || '[]');
+        createdTokens.push(token);
+        localStorage.setItem('created_tokens', JSON.stringify(createdTokens));
 
         container.innerHTML = `
           <h1>✅ 胶囊生成成功！</h1>
@@ -390,9 +430,15 @@
       });
     }
 
-    // ========== 接收方（与之前完全一致） ==========
+    // ========== 接收方（保持不变） ==========
     function initReceiver(token) {
       const container = document.getElementById('mainContainer');
+      const createdTokens = JSON.parse(localStorage.getItem('created_tokens') || '[]');
+      if (createdTokens.includes(token)) {
+        buildSenderPreview(token);
+        return;
+      }
+
       container.innerHTML = '<h1>⏳ 加载中...</h1><div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>';
 
       const localDataKey = 'capsule_local_' + token;
@@ -440,6 +486,95 @@
       }).catch(() => {
         clearInterval(progressTimer);
         container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络后重试</p>';
+      });
+    }
+
+    function buildSenderPreview(token) {
+      const container = document.getElementById('mainContainer');
+      container.innerHTML = '<h1>🔍 加载预览中...</h1><div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>';
+
+      db.ref('capsules/' + token).once('value').then(snapshot => {
+        const data = snapshot.val();
+        if (!data) {
+          container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了（已被对方打开）</p>';
+          return;
+        }
+        const { nickname, message, music, images } = data;
+        const hasMsg = message && message.trim().length > 0;
+        container.innerHTML = `
+          <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊（预览）</div>
+          <h1>📸 胶囊预览</h1>
+          <p style="color:#666; margin: 10px 0;">这是你制作的胶囊，对方将会看到下面的内容</p>
+          <div id="contentArea"></div>
+        `;
+
+        const contentArea = document.getElementById('contentArea');
+        let audioCtx = null; let musicPlaying = false;
+
+        function startMusic() {
+          if (music === 'none' || musicPlaying) return;
+          try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const notes = { melody1: [523,659,784,1047,784,659,523,440,523,659,784,659,523,440,392,440,523,392,440,523,659,523,440,392,330,392,440], melody2: [392,440,523,392,440,523,659,523,440,392,330,392,440,330,392,440,523,440,392,330,294,330,392] }[music] || [];
+            let noteIndex = 0;
+            function playNote() {
+              if (!audioCtx) return;
+              const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+              osc.type = 'sine'; osc.frequency.value = notes[noteIndex % notes.length];
+              gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+              osc.connect(gain); gain.connect(audioCtx.destination);
+              osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 1.5);
+              noteIndex++;
+            }
+            playNote(); musicPlaying = true;
+            window._musicInterval = setInterval(playNote, 2200);
+          } catch(e) {}
+        }
+        function stopMusic() {
+          if (window._musicInterval) { clearInterval(window._musicInterval); window._musicInterval = null; }
+          if (audioCtx) { audioCtx.close(); audioCtx = null; }
+          musicPlaying = false;
+        }
+
+        function startPreviewSlideshow() {
+          contentArea.innerHTML = `
+            ${hasMsg ? `<div class="message-display"><div class="message-content">${escapeHtml(message).replace(/\n/g, '<br>')}</div></div>` : ''}
+            <div class="slideshow-viewer" id="slideshowViewer">
+              ${images.map((src, i) => `<img src="${src}" class="${i === 0 ? 'active' : ''}">`).join('')}
+            </div>
+            <p class="sub-title" id="slideshowHint">回忆缓缓展开...</p>
+          `;
+          startMusic();
+          const imgs = document.querySelectorAll('.slideshow-viewer img');
+          const hint = document.getElementById('slideshowHint');
+          let current = 0; const total = imgs.length;
+          const phrases = ['这些画面，你还记得吗...', '每一个瞬间，都是真的...', '回忆不会说谎...', '那时候的我们，多好啊...', 'TA一直记得...'];
+          function nextSlide() {
+            imgs[current].classList.remove('active'); current++;
+            if (current < total) {
+              imgs[current].classList.add('active');
+              if (hint && phrases[current-1]) hint.textContent = phrases[current-1];
+              window._slideTimer = setTimeout(nextSlide, 3500);
+            } else {
+              if (hint) hint.textContent = '回忆播完了，但那些美好从未离开'; stopMusic();
+            }
+          }
+          window._slideTimer = setTimeout(nextSlide, 3500);
+        }
+
+        contentArea.innerHTML = `
+          <div class="start-card">
+            <div class="start-emoji">🕊️</div>
+            <div class="start-desc">这是一份给 ${escapeHtml(nickname)} 的回忆，<br>希望你们能重新开始。</div>
+            <button class="memorial-btn" id="previewPlayBtn">📽️ 预览播放</button>
+          </div>
+          <p class="note" style="margin-top:10px;">⚠️ 这只是预览，真正的“原谅”按钮只会出现在TA的链接里</p>
+        `;
+        document.getElementById('previewPlayBtn').addEventListener('click', () => { startPreviewSlideshow(); });
+        window.addEventListener('beforeunload', () => { stopMusic(); if (window._slideTimer) clearTimeout(window._slideTimer); });
+      }).catch(() => {
+        container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络</p>';
       });
     }
 
