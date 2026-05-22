@@ -47,10 +47,17 @@
     }
     .char-count { font-size: 12px; color: #999; text-align: right; margin-top: 4px; }
 
+    .music-row { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; }
     .select-field {
-      width: 100%; padding: 12px 20px; border: 2px solid #faa2c1; border-radius: 50px;
-      font-size: 15px; color: #d6336c; background: #fff; outline: none; margin-bottom: 15px;
+      flex: 1; padding: 12px 20px; border: 2px solid #faa2c1; border-radius: 50px;
+      font-size: 15px; color: #d6336c; background: #fff; outline: none;
     }
+    .preview-btn {
+      background: #fff; border: 2px solid #faa2c1; color: #d6336c;
+      padding: 10px 18px; border-radius: 50px; font-size: 14px; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+    }
+    .preview-btn:active { background: #ffe0f0; }
 
     .btn {
       background: linear-gradient(135deg, #ff6b9d, #c44569); border: none; color: white;
@@ -65,10 +72,10 @@
 <body>
   <div class="container" id="mainContainer">
     <h1>📸 制作和好胶囊</h1>
-    <p class="sub-title">定制一份专属于你们的回忆</p>
+    <p class="sub-title">定制一份专属于TA的回忆</p>
 
-    <!-- 昵称 -->
-    <input type="text" class="input-field" id="nicknameInput" placeholder="💝 你的昵称（会让对方知道是谁）" maxlength="20">
+    <!-- 接收方昵称 -->
+    <input type="text" class="input-field" id="nicknameInput" placeholder="💝 输入TA的昵称（会显示在胶囊顶部）" maxlength="20">
 
     <!-- 照片上传 -->
     <div class="upload-area" id="uploadTrigger">
@@ -85,14 +92,17 @@
       <div class="char-count"><span id="charCount">0</span>/200</div>
     </div>
 
-    <!-- 背景音乐 -->
+    <!-- 背景音乐 + 试听 -->
     <label class="message-label">🎵 选择背景音乐</label>
-    <select class="select-field" id="musicSelect">
-      <option value="none">🔇 无音乐</option>
-      <option value="melody1" selected>🎹 舒缓钢琴 · 回忆</option>
-      <option value="melody2">🎻 温暖弦乐 · 守候</option>
-      <option value="melody3">🎧 轻柔吉他 · 告白</option>
-    </select>
+    <div class="music-row">
+      <select class="select-field" id="musicSelect">
+        <option value="none">🔇 无音乐</option>
+        <option value="melody1" selected>🎹 舒缓钢琴 · 回忆</option>
+        <option value="melody2">🎻 温暖弦乐 · 守候</option>
+        <option value="melody3">🎧 轻柔吉他 · 告白</option>
+      </select>
+      <button class="preview-btn" id="previewMusicBtn">▶ 试听</button>
+    </div>
 
     <!-- 记忆问答 -->
     <label class="message-label">❓ 设置一个只有TA知道答案的问题（选填）</label>
@@ -114,8 +124,11 @@
     const musicSelect = document.getElementById('musicSelect');
     const questionInput = document.getElementById('questionInput');
     const answerInput = document.getElementById('answerInput');
+    const previewMusicBtn = document.getElementById('previewMusicBtn');
 
     let selectedFiles = [];
+    let audioCtx = null;
+    let previewInterval = null;
 
     messageInput.addEventListener('input', () => {
       charCount.textContent = messageInput.value.length;
@@ -141,6 +154,60 @@
       generateBtn.disabled = false;
     });
 
+    // 音乐试听功能
+    function stopPreview() {
+      if (previewInterval) { clearInterval(previewInterval); previewInterval = null; }
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      previewMusicBtn.textContent = '▶ 试听';
+    }
+
+    previewMusicBtn.addEventListener('click', () => {
+      if (previewInterval) {
+        stopPreview();
+        return;
+      }
+
+      const selectedMusic = musicSelect.value;
+      if (selectedMusic === 'none') {
+        alert('请先选择一首音乐');
+        return;
+      }
+
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const notes = {
+          melody1: [523,659,784,1047,784,659,523,440],
+          melody2: [392,440,523,659,523,440,392,330],
+          melody3: [330,392,440,523,440,392,330,294]
+        }[selectedMusic] || [];
+
+        let noteIndex = 0;
+        function playNote() {
+          if (!audioCtx) return;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = notes[noteIndex % notes.length];
+          gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(audioCtx.currentTime);
+          osc.stop(audioCtx.currentTime + 1.2);
+          noteIndex++;
+        }
+        playNote();
+        previewMusicBtn.textContent = '⏹ 停止';
+        previewInterval = setInterval(playNote, 1800);
+        // 5秒后自动停止
+        setTimeout(() => {
+          if (previewInterval) stopPreview();
+        }, 5000);
+      } catch(e) {
+        alert('试听失败，但音乐仍会包含在胶囊中');
+        stopPreview();
+      }
+    });
+
     generateBtn.addEventListener('click', async () => {
       if (!selectedFiles.length) return;
       generateBtn.disabled = true;
@@ -156,7 +223,10 @@
         imagesBase64.push(dataUrl);
       }
 
-      const nickname = nicknameInput.value.trim() || 'TA';
+      // 停止试听（如果还在播）
+      stopPreview();
+
+      const nickname = nicknameInput.value.trim() || '你';
       const message = messageInput.value.trim();
       const music = musicSelect.value;
       const question = questionInput.value.trim();
@@ -281,7 +351,7 @@
 </head>
 <body>
   <div class="container" id="mainContainer">
-    <div class="nickname-bar">💝 ${escapedNickname} 为你准备的胶囊</div>
+    <div class="nickname-bar">💝 专属于 ${escapedNickname} 的胶囊</div>
     <div id="contentArea"></div>
   </div>
 
@@ -299,11 +369,10 @@
       const isForgiven = localStorage.getItem(KEY_USED) === 'used';
 
       const contentArea = document.getElementById('contentArea');
-      let currentStep = isForgiven ? 'forgiven' : 'start';
       let audioCtx = null;
       let musicPlaying = false;
 
-      // ===== 音乐引擎 =====
+      // 音乐引擎
       function startMusic() {
         if (music === 'none' || musicPlaying) return;
         try {
@@ -338,7 +407,7 @@
         musicPlaying = false;
       }
 
-      // ===== 幻影灯播放 =====
+      // 幻影灯播放
       function startSlideshow(callback) {
         const slideshowHTML = '<div class="slideshow-viewer" id="slideshowViewer">' + images.map(function(src, i) {
           return '<img src="' + src + '" class="' + (i === 0 ? 'active' : '') + '">';
@@ -368,7 +437,7 @@
         window._slideTimer = setTimeout(nextSlide, 3500);
       }
 
-      // ===== 问答环节 =====
+      // 问答
       function showQuiz(callback) {
         contentArea.innerHTML = '<h1>❓ 在原谅之前...</h1><p style="color:#666;margin:15px 0;">' + question + '</p><input type="text" class="quiz-input" id="quizAnswer" placeholder="请输入你的答案"><p class="quiz-error" id="quizError">答案不对哦，再想想 💭</p><button class="btn" id="quizBtn">✅ 确认答案</button>';
         document.getElementById('quizBtn').addEventListener('click', function() {
@@ -382,7 +451,7 @@
         });
       }
 
-      // ===== 和好券 =====
+      // 和好券
       function showCoupon() {
         contentArea.innerHTML = '<h1>💊 和好胶囊</h1><div class="coupon-card"><div class="coupon-title">专属和好券</div><div class="coupon-desc">看完我们的回忆，<br>你愿意给彼此一个重新开始的机会吗？</div><button class="forgive-btn" id="forgiveBtn">💖 原谅TA，点击和好</button></div>';
         document.getElementById('forgiveBtn').addEventListener('click', function() {
@@ -392,12 +461,12 @@
         });
       }
 
-      // ===== 主流程 =====
+      // 主流程
       function buildStart() {
-        contentArea.innerHTML = '<h1>💊 你收到一颗和好胶囊</h1><div class="start-card"><div class="start-emoji">🕊️</div><div class="start-desc">' + nickname + ' 用心准备了这份回忆，<br>希望能和你重新开始。<br>准备好了吗？</div><button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button></div>';
+        contentArea.innerHTML = '<h1>💊 你收到一颗和好胶囊</h1><div class="start-card"><div class="start-emoji">🕊️</div><div class="start-desc">' + nickname + '，这份回忆是专门为你准备的。<br>希望能和你重新开始。<br>准备好了吗？</div><button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button></div>';
         document.getElementById('startBtn').addEventListener('click', function() {
           if (hasMsg) {
-            contentArea.innerHTML = '<h1>💌 ' + nickname + ' 想对你说...</h1><div class="message-display"><div class="message-content">' + message.replace(/\\n/g, '<br>') + '</div></div><button class="btn" id="continueBtn">📽️ 继续，看看回忆</button>';
+            contentArea.innerHTML = '<h1>💌 想对 ' + nickname + ' 说的话...</h1><div class="message-display"><div class="message-content">' + message.replace(/\\n/g, '<br>') + '</div></div><button class="btn" id="continueBtn">📽️ 继续，看看回忆</button>';
             document.getElementById('continueBtn').addEventListener('click', function() {
               startSlideshow(function() {
                 if (hasQuiz) { showQuiz(showCoupon); }
@@ -414,7 +483,7 @@
       }
 
       if (isForgiven) {
-        contentArea.innerHTML = '<h1>🌸</h1><div class="forgiven-msg">你们已经和好如初啦 💕</div><p style="color:#666;margin-top:15px;">这份回忆将永远为你留存</p>';
+        contentArea.innerHTML = '<h1>🌸</h1><div class="forgiven-msg">你们已经和好如初啦 💕</div><p style="color:#666;margin-top:15px;">这份回忆将永远为 ' + nickname + ' 留存</p>';
       } else {
         buildStart();
       }
