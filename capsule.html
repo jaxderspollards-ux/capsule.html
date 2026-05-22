@@ -65,6 +65,17 @@
     }
     .char-count { font-size: 11px; color: #999; text-align: right; margin-top: 3px; }
 
+    .voice-section { margin: 15px 0; text-align: left; }
+    .voice-row { display: flex; gap: 10px; align-items: center; }
+    .voice-btn {
+      background: #fff; border: 2px solid #faa2c1; color: #d6336c;
+      padding: 12px 20px; border-radius: 50px; font-size: 15px; cursor: pointer;
+      flex-shrink: 0;
+    }
+    .voice-btn.recording { background: #ff6b9d; color: white; border-color: #ff6b9d; animation: pulse 1s infinite; }
+    .voice-status { font-size: 12px; color: #e6739f; margin-top: 6px; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+
     .music-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
     .select-field {
       flex: 1; padding: 10px 16px; border: 2px solid #faa2c1; border-radius: 50px;
@@ -106,11 +117,42 @@
     }
     .start-emoji { font-size: 50px; margin-bottom: 10px; }
     .start-desc { color: #666; font-size: 14px; margin: 10px 0; line-height: 1.6; }
-    .message-display {
-      background: linear-gradient(145deg, #fff5f8, #ffe0ec); border-radius: 24px;
-      padding: 20px; margin: 15px 0; border: 2px solid #ffb3c6;
+
+    /* 手写信样式 */
+    .letter-container {
+      position: relative; margin: 20px auto; max-width: 360px;
     }
-    .message-content { font-size: 15px; color: #555; line-height: 1.7; font-style: italic; }
+    .letter-envelope {
+      background: linear-gradient(160deg, #fef5e7 0%, #fdebd0 100%);
+      border-radius: 8px; padding: 0;
+      box-shadow: 0 8px 25px rgba(139,90,43,0.15);
+      position: relative;
+    }
+    .letter-seal {
+      width: 50px; height: 50px; background: linear-gradient(135deg, #e8a0b4, #d6336c);
+      border-radius: 50%; margin: -25px auto 0; position: relative; z-index: 2;
+      box-shadow: 0 4px 12px rgba(214,51,108,0.3);
+      display: flex; justify-content: center; align-items: center;
+      font-size: 22px; color: white;
+    }
+    .letter-content {
+      padding: 30px 25px 25px; text-align: left;
+      font-family: 'Georgia', 'Noto Serif SC', 'STSong', 'Songti SC', serif;
+      font-size: 16px; color: #4a3728; line-height: 2;
+      letter-spacing: 0.5px;
+      white-space: pre-wrap;
+    }
+    .letter-signature {
+      text-align: right; margin-top: 20px; padding-right: 10px;
+      font-style: italic; color: #a0522d;
+    }
+    .letter-flourish {
+      position: absolute; top: 15px; left: 15px;
+      font-size: 40px; color: rgba(214,51,108,0.12);
+      pointer-events: none;
+    }
+    .letter-flourish.br { top: auto; bottom: 15px; left: auto; right: 15px; }
+
     .slideshow-viewer {
       width: 100%; height: 320px; border-radius: 24px; background: #1a1a1a;
       overflow: hidden; position: relative; margin: 15px 0;
@@ -184,10 +226,9 @@
       initPasswordGate();
     }
 
-    // ========== 密码验证门（极简版） ==========
+    // ========== 密码验证门 ==========
     function initPasswordGate() {
       const container = document.getElementById('mainContainer');
-
       container.innerHTML = `
         <h1>🔐 验证你的胶囊</h1>
         <p class="sub-title">请输入购买后获得的专属密码</p>
@@ -196,17 +237,14 @@
         <button class="btn" id="verifyBtn">🔓 验证进入</button>
         <p class="note">💡 密码由卖家提供，请勿外传</p>
       `;
-
       document.getElementById('verifyBtn').addEventListener('click', () => {
-        const inputPwd = document.getElementById('passwordInput').value.trim();
-        if (inputPwd === CURRENT_PASSWORD) {
+        if (document.getElementById('passwordInput').value.trim() === CURRENT_PASSWORD) {
           initSender();
         } else {
           document.getElementById('errorMsg').style.display = 'block';
           document.getElementById('passwordInput').value = '';
         }
       });
-
       document.getElementById('passwordInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') document.getElementById('verifyBtn').click();
       });
@@ -220,14 +258,9 @@
           const img = new Image();
           img.onload = () => {
             const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-            canvas.width = width;
-            canvas.height = height;
+            let width = img.width, height = img.height;
+            if (width > maxWidth) { height = (height * maxWidth) / width; width = maxWidth; }
+            canvas.width = width; canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
             resolve(canvas.toDataURL('image/jpeg', quality));
@@ -257,6 +290,14 @@
           <label class="message-label">💬 想对TA说的话（选填）</label>
           <textarea class="message-textarea" id="messageInput" placeholder="对不起，那天是我太冲动了..." maxlength="200"></textarea>
           <div class="char-count"><span id="charCount">0</span>/200</div>
+        </div>
+
+        <div class="voice-section">
+          <label class="message-label">🎙️ 语音留言（选填，最长60秒）</label>
+          <div class="voice-row">
+            <button class="voice-btn" id="voiceBtn">🎤 按住录音</button>
+            <span class="voice-status" id="voiceStatus"></span>
+          </div>
         </div>
 
         <label class="message-label">🎵 选择背景音乐</label>
@@ -294,10 +335,13 @@
       const progressBar = document.getElementById('progressBar');
       const progressFill = document.getElementById('progressFill');
       const statusText = document.getElementById('statusText');
+      const voiceBtn = document.getElementById('voiceBtn');
+      const voiceStatus = document.getElementById('voiceStatus');
 
-      let selectedFiles = [];
-      let audioCtx = null;
-      let previewInterval = null;
+      let selectedFiles = [], audioCtx = null, previewInterval = null;
+      let voiceBase64 = null;
+      let mediaRecorder = null;
+      let audioChunks = [];
 
       function checkGenerateBtn() {
         const nicknameFilled = nicknameInput.value.trim().length > 0;
@@ -306,10 +350,38 @@
       }
 
       nicknameInput.addEventListener('input', checkGenerateBtn);
+      messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
 
-      messageInput.addEventListener('input', () => {
-        charCount.textContent = messageInput.value.length;
-      });
+      // 录音
+      voiceBtn.addEventListener('touchstart', startRec); voiceBtn.addEventListener('mousedown', startRec);
+      voiceBtn.addEventListener('touchend', stopRec); voiceBtn.addEventListener('mouseup', stopRec);
+      voiceBtn.addEventListener('touchcancel', stopRec); voiceBtn.addEventListener('mouseleave', stopRec);
+
+      function startRec(e) {
+        e.preventDefault();
+        if (!navigator.mediaDevices?.getUserMedia) { alert('浏览器不支持录音，请用文字留言'); return; }
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          mediaRecorder = new MediaRecorder(stream); audioChunks = [];
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.onload = () => {
+              voiceBase64 = reader.result;
+              voiceStatus.textContent = '✅ 语音已录制 (' + Math.round(blob.size/1024) + 'KB)';
+            };
+            reader.readAsDataURL(blob);
+          };
+          mediaRecorder.start();
+          voiceBtn.classList.add('recording'); voiceBtn.textContent = '🎤 松开结束录音'; voiceStatus.textContent = '🔴 正在录音...';
+          setTimeout(() => { if (mediaRecorder?.state === 'recording') stopRec(); }, 60000);
+        }).catch(() => alert('无法访问麦克风，请用文字留言'));
+      }
+      function stopRec() {
+        if (mediaRecorder?.state === 'recording') { mediaRecorder.stop(); mediaRecorder.stream.getTracks().forEach(t => t.stop()); }
+        voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤 按住录音';
+        if (!voiceBase64) voiceStatus.textContent = '';
+      }
 
       uploadTrigger.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', (e) => {
@@ -317,14 +389,13 @@
         if (!files.length) return;
         selectedFiles = files.slice(0, 100);
         uploadCount.textContent = '已选 ' + selectedFiles.length + ' 张';
-        
         previewGrid.innerHTML = '';
         const previewCount = Math.min(selectedFiles.length, 20);
         for (let i = 0; i < previewCount; i++) {
           const reader = new FileReader();
-          reader.onload = (e) => {
+          reader.onload = (ev) => {
             const img = document.createElement('img');
-            img.src = e.target.result;
+            img.src = ev.target.result;
             img.className = 'preview-thumb';
             previewGrid.appendChild(img);
           };
@@ -336,7 +407,6 @@
           more.textContent = '...还有 ' + (selectedFiles.length - 20) + ' 张';
           previewGrid.appendChild(more);
         }
-        
         checkGenerateBtn();
       });
 
@@ -379,15 +449,11 @@
 
         const imagesBase64 = [];
         const total = selectedFiles.length;
-        
         const batchSize = 10;
         for (let i = 0; i < total; i += batchSize) {
           const batch = selectedFiles.slice(i, i + batchSize);
-          const batchResults = await Promise.all(
-            batch.map(file => compressImage(file, 600, 0.6))
-          );
+          const batchResults = await Promise.all(batch.map(file => compressImage(file, 600, 0.6)));
           imagesBase64.push(...batchResults);
-          
           const progress = Math.round(((i + batch.length) / total) * 100);
           progressFill.style.width = progress + '%';
           statusText.textContent = `已压缩 ${Math.min(i + batch.length, total)}/${total} 张...`;
@@ -397,10 +463,12 @@
         const capsuleData = {
           nickname: nicknameInput.value.trim(),
           message: messageInput.value.trim() || '',
+          voice: voiceBase64 || null,
           music: musicSelect.value,
           question: questionInput.value.trim() || '',
           answer: answerInput.value.trim() || '',
-          images: imagesBase64
+          images: imagesBase64,
+          viewed: false
         };
 
         const newRef = db.ref('capsules').push();
@@ -417,8 +485,17 @@
           <p style="color:#666; margin: 15px 0;">专属链接已准备好，发给TA即可</p>
           <div style="background:#f8f0f3; border-radius:16px; padding:15px; word-break:break-all; font-size:12px; color:#d6336c; margin:15px 0;">${link}</div>
           <button class="btn" id="copyBtn">📋 一键复制链接</button>
+          <p id="viewStatus" style="color:#e6739f; margin-top:15px; font-weight:600;">⏳ 等待TA打开...</p>
           <p class="note">💡 对方点击“原谅”后，云端数据将自动删除，但TA的手机上将永久保留这份回忆</p>
         `;
+
+        db.ref('capsules/' + token + '/viewed').on('value', snap => {
+          if (snap.val() === true) {
+            const vs = document.getElementById('viewStatus');
+            if (vs) vs.textContent = '✅ TA已打开胶囊';
+          }
+        });
+
         document.getElementById('copyBtn').addEventListener('click', () => {
           if (navigator.clipboard) {
             navigator.clipboard.writeText(link).then(() => alert('链接已复制！快去发给TA吧 💕'));
@@ -430,7 +507,7 @@
       });
     }
 
-    // ========== 接收方（保持不变） ==========
+    // ========== 接收方 ==========
     function initReceiver(token) {
       const container = document.getElementById('mainContainer');
       const createdTokens = JSON.parse(localStorage.getItem('created_tokens') || '[]');
@@ -443,7 +520,6 @@
 
       const localDataKey = 'capsule_local_' + token;
       const localData = localStorage.getItem(localDataKey);
-
       if (localData) {
         const data = JSON.parse(localData);
         buildMemorialUI(data);
@@ -453,8 +529,7 @@
       const progressFill = document.getElementById('progressFill');
       let progress = 0;
       const progressTimer = setInterval(() => {
-        progress += 15;
-        if (progress > 90) progress = 90;
+        progress += 15; if (progress > 90) progress = 90;
         if (progressFill) progressFill.style.width = progress + '%';
       }, 300);
 
@@ -479,6 +554,9 @@
               container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>';
               return;
             }
+            if (data.viewed !== true) {
+              db.ref('capsules/' + token + '/viewed').set(true);
+            }
             if (progressFill) progressFill.style.width = '100%';
             setTimeout(() => buildReceiverUI(data, token, localDataKey), 300);
           });
@@ -487,6 +565,21 @@
         clearInterval(progressTimer);
         container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络后重试</p>';
       });
+    }
+
+    // 生成手写信HTML
+    function buildLetterHTML(message) {
+      if (!message || !message.trim()) return '';
+      return `
+        <div class="letter-container">
+          <div class="letter-envelope">
+            <div class="letter-seal">💌</div>
+            <div class="letter-content">${escapeHtml(message)}</div>
+            <div class="letter-flourish">❦</div>
+            <div class="letter-flourish br">❦</div>
+          </div>
+        </div>
+      `;
     }
 
     function buildSenderPreview(token) {
@@ -499,17 +592,18 @@
           container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了（已被对方打开）</p>';
           return;
         }
-        const { nickname, message, music, images } = data;
+        const { nickname, message, music, images, voice, viewed } = data;
         const hasMsg = message && message.trim().length > 0;
+        const hasVoice = voice && voice.length > 0;
         container.innerHTML = `
-          <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊（预览）</div>
+          <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊（预览）${viewed ? ' · 对方已读' : ''}</div>
           <h1>📸 胶囊预览</h1>
           <p style="color:#666; margin: 10px 0;">这是你制作的胶囊，对方将会看到下面的内容</p>
           <div id="contentArea"></div>
         `;
 
         const contentArea = document.getElementById('contentArea');
-        let audioCtx = null; let musicPlaying = false;
+        let audioCtx = null, musicPlaying = false;
 
         function startMusic() {
           if (music === 'none' || musicPlaying) return;
@@ -531,15 +625,12 @@
             window._musicInterval = setInterval(playNote, 2200);
           } catch(e) {}
         }
-        function stopMusic() {
-          if (window._musicInterval) { clearInterval(window._musicInterval); window._musicInterval = null; }
-          if (audioCtx) { audioCtx.close(); audioCtx = null; }
-          musicPlaying = false;
-        }
+        function stopMusic() { if (window._musicInterval) clearInterval(window._musicInterval); if (audioCtx) audioCtx.close(); musicPlaying = false; }
 
         function startPreviewSlideshow() {
           contentArea.innerHTML = `
-            ${hasMsg ? `<div class="message-display"><div class="message-content">${escapeHtml(message).replace(/\n/g, '<br>')}</div></div>` : ''}
+            ${hasMsg ? buildLetterHTML(message) : ''}
+            ${hasVoice ? '<div style="margin:15px 0;"><audio controls src="' + voice + '" style="width:100%;"></audio></div>' : ''}
             <div class="slideshow-viewer" id="slideshowViewer">
               ${images.map((src, i) => `<img src="${src}" class="${i === 0 ? 'active' : ''}">`).join('')}
             </div>
@@ -573,15 +664,14 @@
         `;
         document.getElementById('previewPlayBtn').addEventListener('click', () => { startPreviewSlideshow(); });
         window.addEventListener('beforeunload', () => { stopMusic(); if (window._slideTimer) clearTimeout(window._slideTimer); });
-      }).catch(() => {
-        container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络</p>';
-      });
+      }).catch(() => { container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络</p>'; });
     }
 
     function buildMemorialUI(data) {
       const container = document.getElementById('mainContainer');
-      const { nickname, message, music, images } = data;
+      const { nickname, message, music, images, voice } = data;
       const hasMsg = message && message.trim().length > 0;
+      const hasVoice = voice && voice.length > 0;
       container.innerHTML = `
         <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的和好纪念册</div>
         <h1>🌸 和好成功！</h1>
@@ -590,7 +680,7 @@
       `;
 
       const contentArea = document.getElementById('contentArea');
-      let audioCtx = null; let musicPlaying = false;
+      let audioCtx = null, musicPlaying = false;
 
       function startMusic() {
         if (music === 'none' || musicPlaying) return;
@@ -612,15 +702,12 @@
           window._musicInterval = setInterval(playNote, 2200);
         } catch(e) {}
       }
-      function stopMusic() {
-        if (window._musicInterval) { clearInterval(window._musicInterval); window._musicInterval = null; }
-        if (audioCtx) { audioCtx.close(); audioCtx = null; }
-        musicPlaying = false;
-      }
+      function stopMusic() { if (window._musicInterval) clearInterval(window._musicInterval); if (audioCtx) audioCtx.close(); musicPlaying = false; }
 
       function startMemorialSlideshow() {
         contentArea.innerHTML = `
-          ${hasMsg ? `<div class="message-display"><div class="message-content">${escapeHtml(message).replace(/\n/g, '<br>')}</div></div>` : ''}
+          ${hasMsg ? buildLetterHTML(message) : ''}
+          ${hasVoice ? '<div style="margin:15px 0;"><audio controls src="' + voice + '" style="width:100%;"></audio></div>' : ''}
           <div class="slideshow-viewer" id="slideshowViewer">
             ${images.map((src, i) => `<img src="${src}" class="${i === 0 ? 'active' : ''}">`).join('')}
           </div>
@@ -657,9 +744,10 @@
 
     function buildReceiverUI(data, token, localDataKey) {
       const container = document.getElementById('mainContainer');
-      const { nickname, message, music, question, answer, images } = data;
+      const { nickname, message, music, question, answer, images, voice } = data;
       const hasMsg = message && message.trim().length > 0;
       const hasQuiz = question && answer && question.trim().length > 0 && answer.trim().length > 0;
+      const hasVoice = voice && voice.length > 0;
 
       container.innerHTML = `
         <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊</div>
@@ -667,7 +755,7 @@
       `;
 
       const contentArea = document.getElementById('contentArea');
-      let audioCtx = null; let musicPlaying = false;
+      let audioCtx = null, musicPlaying = false;
 
       function startMusic() {
         if (music === 'none' || musicPlaying) return;
@@ -689,14 +777,12 @@
           window._musicInterval = setInterval(playNote, 2200);
         } catch(e) {}
       }
-      function stopMusic() {
-        if (window._musicInterval) { clearInterval(window._musicInterval); window._musicInterval = null; }
-        if (audioCtx) { audioCtx.close(); audioCtx = null; }
-        musicPlaying = false;
-      }
+      function stopMusic() { if (window._musicInterval) clearInterval(window._musicInterval); if (audioCtx) audioCtx.close(); musicPlaying = false; }
 
       function startSlideshow(callback) {
         contentArea.innerHTML = `
+          ${hasMsg ? buildLetterHTML(message) : ''}
+          ${hasVoice ? '<div style="margin:15px 0;"><audio controls src="' + voice + '" style="width:100%;"></audio></div>' : ''}
           <div class="slideshow-viewer" id="slideshowViewer">
             ${images.map((src, i) => `<img src="${src}" class="${i === 0 ? 'active' : ''}">`).join('')}
           </div>
@@ -769,8 +855,12 @@
         </div>
       `;
       document.getElementById('startBtn').addEventListener('click', () => {
-        if (hasMsg) {
-          contentArea.innerHTML = `<h1>💌 想对 ${escapeHtml(nickname)} 说的话...</h1><div class="message-display"><div class="message-content">${escapeHtml(message).replace(/\n/g, '<br>')}</div></div><button class="btn" id="continueBtn">📽️ 继续，看看回忆</button>`;
+        if (hasMsg || hasVoice) {
+          let innerHTML = '<h1>💌 想对 ' + escapeHtml(nickname) + ' 说的话...</h1>';
+          if (hasMsg) innerHTML += buildLetterHTML(message);
+          if (hasVoice) innerHTML += '<div style="margin:15px 0;"><audio controls src="' + voice + '" style="width:100%;"></audio></div>';
+          innerHTML += '<button class="btn" id="continueBtn">📽️ 继续，看看回忆</button>';
+          contentArea.innerHTML = innerHTML;
           document.getElementById('continueBtn').addEventListener('click', () => {
             startSlideshow(() => { if (hasQuiz) showQuiz(showCoupon); else showCoupon(); });
           });
