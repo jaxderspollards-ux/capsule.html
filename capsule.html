@@ -35,7 +35,6 @@
       overflow-x: hidden;
     }
 
-    /* 背景粒子 */
     .bg-particles {
       position: fixed; inset: 0; pointer-events: none; z-index: 0;
       overflow: hidden;
@@ -70,7 +69,6 @@
     .container::-webkit-scrollbar-track { background: transparent; }
     .container::-webkit-scrollbar-thumb { background: var(--pink-pale); border-radius: 2px; }
 
-    /* 顶部装饰线 */
     .container::before {
       content: '';
       position: absolute; top: 0; left: 10%; right: 10%; height: 2px;
@@ -85,7 +83,6 @@
     }
     .sub-title { font-size: 13px; color: var(--text-light); margin-bottom: 22px; letter-spacing: 0.5px; }
 
-    /* 密码页 */
     .lock-icon {
       width: 72px; height: 72px; margin: 10px auto 20px;
       background: linear-gradient(135deg, var(--pink-bright), var(--pink-deep));
@@ -119,7 +116,6 @@
 
     .error-msg { color: #e03131; font-size: 13px; margin-top: -8px; margin-bottom: 10px; display: none; }
 
-    /* 上传区域 */
     .upload-area {
       border: 1.5px dashed var(--pink-light);
       border-radius: 20px; padding: 22px 16px;
@@ -134,7 +130,6 @@
     .upload-text { color: var(--pink-deep); font-size: 14px; font-weight: 500; }
     .upload-count { font-size: 12px; color: var(--text-light); margin-top: 4px; }
 
-    /* 照片预览网格 */
     .preview-grid {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
       margin: 10px 0; max-height: 220px; overflow-y: auto; padding: 4px;
@@ -157,7 +152,6 @@
       z-index: 2; line-height: 1;
     }
 
-    /* 文字留言 */
     .message-section { margin: 16px 0; text-align: left; }
     .message-label {
       font-size: 13px; color: var(--pink-deep); font-weight: 600;
@@ -179,7 +173,6 @@
     }
     .char-count { font-size: 11px; color: var(--text-light); text-align: right; margin-top: 4px; }
 
-    /* 录音 */
     .voice-section { margin: 16px 0; text-align: left; }
     .voice-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .voice-btn {
@@ -187,6 +180,7 @@
       color: var(--pink-deep); padding: 11px 20px; border-radius: 50px;
       font-size: 14px; cursor: pointer; font-family: inherit;
       transition: all 0.2s; font-weight: 500;
+      user-select: none; -webkit-user-select: none;
     }
     .voice-btn:hover { border-color: var(--pink-bright); }
     .voice-btn.recording {
@@ -203,7 +197,6 @@
       font-size: 12px; cursor: pointer; font-family: inherit;
     }
 
-    /* 音乐 */
     .music-row { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
     .select-field {
       flex: 1; padding: 11px 16px;
@@ -220,7 +213,6 @@
     }
     .preview-btn:hover { border-color: var(--pink-bright); }
 
-    /* 主按钮 */
     .btn {
       background: linear-gradient(135deg, var(--pink-bright) 0%, var(--pink-deep) 100%);
       border: none; color: white;
@@ -243,7 +235,6 @@
 
     .note { font-size: 11px; color: var(--text-light); margin-top: 16px; line-height: 1.6; }
 
-    /* 进度条 */
     .progress-wrap { margin: 14px 0; }
     .progress-bar {
       width: 100%; height: 5px; background: var(--pink-bg);
@@ -261,7 +252,6 @@
     .progress-label { font-size: 12px; color: var(--text-light); margin-top: 6px; }
     .status-text { font-size: 13px; color: var(--text-light); margin: 8px 0; }
 
-    /* 昵称栏 */
     .nickname-bar {
       background: linear-gradient(135deg, rgba(255,209,220,0.5), rgba(255,107,157,0.15));
       border: 1px solid rgba(255,160,200,0.3);
@@ -270,7 +260,6 @@
       letter-spacing: 0.5px;
     }
 
-    /* 开始卡片 */
     .start-card {
       background: linear-gradient(145deg, #fff8fb, #ffe8f2);
       border-radius: 28px; padding: 28px 22px; margin: 18px 0;
@@ -280,7 +269,6 @@
     .start-emoji { font-size: 52px; margin-bottom: 12px; display: block; }
     .start-desc { color: var(--text-mid); font-size: 14px; margin: 10px 0 18px; line-height: 1.8; }
 
-    /* ================= 优化后的信封动画与样式 ================= */
     .envelope-wrapper { 
       position: relative; margin: 30px auto 10px; 
       min-height: 310px; display: flex; justify-content: center; align-items: flex-end; 
@@ -301,14 +289,12 @@
       50% { transform: translateY(-10px); }
     }
     
-    /* 信封内背 */
     .envelope-back {
       position: absolute; inset: 0;
       background: linear-gradient(145deg, #e6cdb3, #f2e2ce);
       border-radius: 8px;
     }
     
-    /* 信封前面板组合 (运用 clip-path 实现真实的物理折叠感) */
     .envelope-front {
       position: absolute; inset: 0; z-index: 3;
       pointer-events: none; border-radius: 8px;
@@ -329,7 +315,6 @@
       clip-path: polygon(0 100%, 50% 0, 100% 100%);
     }
     
-    /* 顶部可翻折盖子 */
     .envelope-flap {
       position: absolute; top: 0; left: 0; width: 100%; height: 62%;
       background: linear-gradient(to bottom, #fffdf8, #efe0cb);
@@ -341,10 +326,9 @@
     }
     .envelope-flap.open {
       transform: rotateX(180deg);
-      z-index: 1; /* 翻开后躲到信纸后面 */
+      z-index: 1;
     }
     
-    /* 封泥 */
     .envelope-seal {
       position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%);
       width: 48px; height: 48px;
@@ -364,22 +348,21 @@
       opacity: 0;
     }
     
-    /* 信纸实体 */
     .letter-paper {
       position: absolute; bottom: 8px; left: 12px; right: 12px;
-      height: 160px; /* 初始收进信封内 */
+      height: 160px;
       background: #fffdfa linear-gradient(135deg, rgba(255,240,245,0.4), transparent);
       border: 1px solid rgba(255,182,193,0.3);
       border-radius: 6px;
       padding: 24px 20px;
       box-shadow: 0 0 10px rgba(0,0,0,0.05);
       transition: all 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
-      z-index: 2; /* 藏在前面板之下 */
+      z-index: 2;
       display: flex; flex-direction: column;
     }
     .letter-paper.show {
-      transform: translateY(-110px); /* 向上抽出 */
-      height: 240px; /* 展开高度 */
+      transform: translateY(-110px);
+      height: 240px;
       box-shadow: 0 12px 35px rgba(196,69,105,0.18);
     }
     .letter-deco { position: absolute; top: 12px; right: 14px; font-size: 16px; opacity: 0.8; }
@@ -398,16 +381,13 @@
     .letter-text::-webkit-scrollbar-thumb { background: rgba(196,69,105,0.2); border-radius: 2px; }
     .letter-paper.show .letter-text { opacity: 1; }
     
-    /* 操作提示 */
     .envelope-hint {
       position: absolute; bottom: -35px; left: 0; width: 100%;
       font-size: 13px; color: var(--text-light); text-align: center;
       transition: opacity 0.4s; letter-spacing: 1px;
     }
     .envelope-container.is-open .envelope-hint { opacity: 0; }
-    /* ==================================================== */
 
-    /* 幻灯片 */
     .slideshow-viewer {
       width: 100%; height: 300px; border-radius: 20px;
       background: #0d0608; overflow: hidden; position: relative;
@@ -438,7 +418,6 @@
       text-align: left;
     }
 
-    /* 问答 */
     .quiz-input {
       width: 82%; padding: 13px 20px;
       border: 1.5px solid var(--pink-pale); border-radius: 50px;
@@ -450,7 +429,6 @@
     .quiz-input:focus { border-color: var(--pink-bright); box-shadow: 0 0 0 3px rgba(255,107,157,0.1); }
     .quiz-error { color: #e03131; font-size: 13px; margin-top: 5px; display: none; }
 
-    /* 原谅券 */
     .coupon-card {
       background: linear-gradient(145deg, #fff5f8, #ffe0ec);
       border-radius: 28px; padding: 28px 22px; margin: 16px 0;
@@ -510,7 +488,6 @@
 
     .error-text { color: var(--text-light); font-size: 14px; margin: 20px 0; }
 
-    /* 语音播放器 */
     .voice-player-wrapper {
       display: flex; align-items: center; gap: 14px; justify-content: center;
       background: linear-gradient(135deg, rgba(255,209,220,0.3), rgba(255,107,157,0.1));
@@ -555,12 +532,10 @@
     }
     .voice-time { font-size: 12px; color: var(--text-light); letter-spacing: 1px; }
 
-    /* 烟花效果 */
     .firework-canvas {
       position: fixed; inset: 0; pointer-events: none; z-index: 100;
     }
 
-    /* 进入动画 */
     @keyframes fadeInUp {
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
@@ -569,7 +544,6 @@
     .fade-in-delay { animation: fadeInUp 0.5s ease 0.15s forwards; opacity: 0; }
     .fade-in-delay2 { animation: fadeInUp 0.5s ease 0.3s forwards; opacity: 0; }
 
-    /* 胶囊入场动画 */
     @keyframes capsuleDrop {
       0% { transform: translateY(-60px) rotate(-8deg); opacity: 0; }
       60% { transform: translateY(8px) rotate(2deg); opacity: 1; }
@@ -578,7 +552,6 @@
     }
     .capsule-drop { animation: capsuleDrop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
-    /* 主题皮肤 */
     .theme-selector { display: flex; gap: 8px; margin-bottom: 14px; justify-content: center; }
     .theme-dot {
       width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
@@ -591,7 +564,6 @@
     .theme-dot.dark { background: linear-gradient(135deg, #4a4a6a, #1a1a2e); }
     .theme-dot.gold { background: linear-gradient(135deg, #f6c90e, #b8860b); }
 
-    /* 蓝色主题 */
     body.theme-blue .container { background: linear-gradient(160deg, rgba(240,248,255,0.97), rgba(220,240,255,0.97)); }
     body.theme-blue { background: #050d1a; }
     body.theme-blue h1, body.theme-blue .message-label,
@@ -600,7 +572,6 @@
     body.theme-blue .password-input:focus, body.theme-blue .input-field:focus,
     body.theme-blue .message-textarea:focus { border-color: #4fc3f7; box-shadow: 0 0 0 3px rgba(79,195,247,0.15); }
 
-    /* 深色主题 */
     body.theme-dark .container { background: linear-gradient(160deg, rgba(28,20,36,0.97), rgba(20,15,30,0.97)); }
     body.theme-dark h1 { color: #e0b0ff; }
     body.theme-dark .message-label, body.theme-dark .upload-text { color: #c084fc; }
@@ -615,7 +586,6 @@
     body.theme-dark .start-desc, body.theme-dark .coupon-desc { color: #b090d0; }
     body.theme-dark .nickname-bar { background: rgba(168,85,247,0.1); border-color: rgba(168,85,247,0.2); color: #c084fc; }
 
-    /* 金色主题 */
     body.theme-gold .container { background: linear-gradient(160deg, rgba(255,252,240,0.97), rgba(255,248,220,0.97)); }
     body.theme-gold { background: #1a1400; }
     body.theme-gold h1, body.theme-gold .message-label { color: #92600a; }
@@ -629,13 +599,11 @@
   <div class="container" id="mainContainer"></div>
 
   <script>
-    // ===== 配置 =====
     const CURRENT_PASSWORD = 'hehao2024';
     const firebaseConfig = { databaseURL: "https://sorry-capsule-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // ===== 背景粒子 =====
     (function initParticles() {
       const container = document.getElementById('bgParticles');
       const colors = ['#ff6b9d','#ffd1dc','#c44569','#ffb3c6','#ffffff'];
@@ -643,31 +611,17 @@
         const p = document.createElement('div');
         p.className = 'particle';
         const size = Math.random() * 6 + 2;
-        p.style.cssText = `
-          width:${size}px; height:${size}px;
-          left:${Math.random()*100}%;
-          background:${colors[Math.floor(Math.random()*colors.length)]};
-          animation-duration:${Math.random()*15+10}s;
-          animation-delay:${Math.random()*10}s;
-        `;
+        p.style.cssText = `width:${size}px;height:${size}px;left:${Math.random()*100}%;background:${colors[Math.floor(Math.random()*colors.length)]};animation-duration:${Math.random()*15+10}s;animation-delay:${Math.random()*10}s;`;
         container.appendChild(p);
       }
     })();
 
-    // ===== 主题切换 =====
     let currentTheme = 'pink';
     function applyTheme(theme) {
       document.body.className = theme === 'pink' ? '' : 'theme-' + theme;
       currentTheme = theme;
-      const themeColors = {
-        pink: ['#ff6b9d','#ffd1dc','#c44569'],
-        blue: ['#4fc3f7','#b3e5fc','#1565c0'],
-        dark: ['#a855f7','#e0b0ff','#6d28d9'],
-        gold: ['#f6c90e','#ffd700','#b8860b']
-      };
     }
 
-    // ===== 烟花效果 =====
     function launchFireworks() {
       const canvas = document.getElementById('fireworkCanvas');
       const ctx = canvas.getContext('2d');
@@ -681,15 +635,7 @@
         for (let i = 0; i < 60; i++) {
           const angle = (Math.PI * 2 / 60) * i;
           const speed = Math.random() * 5 + 2;
-          particles.push({
-            x, y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            alpha: 1,
-            color: colors[Math.floor(Math.random() * colors.length)],
-            size: Math.random() * 3 + 1,
-            delay: burst * 200
-          });
+          particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, alpha: 1, color: colors[Math.floor(Math.random()*colors.length)], size: Math.random()*3+1, delay: burst*200 });
         }
       }
       let startTime = null;
@@ -699,19 +645,8 @@
         let alive = false;
         for (const p of particles) {
           if (ts - startTime < p.delay) { alive = true; continue; }
-          p.x += p.vx; p.y += p.vy;
-          p.vy += 0.08;
-          p.alpha -= 0.015;
-          if (p.alpha > 0) {
-            alive = true;
-            ctx.save();
-            ctx.globalAlpha = p.alpha;
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-          }
+          p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.alpha -= 0.015;
+          if (p.alpha > 0) { alive = true; ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.restore(); }
         }
         if (alive) requestAnimationFrame(animate);
         else ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -719,10 +654,8 @@
       requestAnimationFrame(animate);
     }
 
-    // ===== 工具函数 =====
     function escapeHtml(text) {
-      return String(text).replace(/[&<>"']/g, m =>
-        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' })[m]);
+      return String(text).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]);
     }
 
     function compressImage(file, maxWidth = 600, quality = 0.6) {
@@ -745,14 +678,7 @@
     }
 
     function buildThemeSelector() {
-      return `
-        <div class="theme-selector" id="themeSelector">
-          <div class="theme-dot pink active" data-theme="pink" title="粉色"></div>
-          <div class="theme-dot blue" data-theme="blue" title="蓝色"></div>
-          <div class="theme-dot dark" data-theme="dark" title="深色"></div>
-          <div class="theme-dot gold" data-theme="gold" title="金色"></div>
-        </div>
-      `;
+      return `<div class="theme-selector" id="themeSelector"><div class="theme-dot pink active" data-theme="pink" title="粉色"></div><div class="theme-dot blue" data-theme="blue" title="蓝色"></div><div class="theme-dot dark" data-theme="dark" title="深色"></div><div class="theme-dot gold" data-theme="gold" title="金色"></div></div>`;
     }
 
     function bindThemeSelector() {
@@ -765,13 +691,11 @@
       });
     }
 
-    // ===== 路由 =====
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     if (token) { initReceiver(token); }
     else { initPasswordGate(); }
 
-    // ===== 密码门 =====
     function initPasswordGate() {
       const container = document.getElementById('mainContainer');
       container.innerHTML = `
@@ -786,26 +710,18 @@
       document.getElementById('verifyBtn').addEventListener('click', () => {
         const v = document.getElementById('passwordInput').value.trim();
         if (v === CURRENT_PASSWORD) { initSender(); }
-        else {
-          document.getElementById('errorMsg').style.display = 'block';
-          document.getElementById('passwordInput').value = '';
-        }
+        else { document.getElementById('errorMsg').style.display = 'block'; document.getElementById('passwordInput').value = ''; }
       });
-      document.getElementById('passwordInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('verifyBtn').click();
-      });
+      document.getElementById('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('verifyBtn').click(); });
     }
 
-    // ===== 发起方制作页 =====
     function initSender() {
       const container = document.getElementById('mainContainer');
       container.innerHTML = `
         ${buildThemeSelector()}
         <h1>📸 制作和好胶囊</h1>
         <p class="sub-title">定制一份专属于TA的回忆</p>
-
         <input type="text" class="input-field" id="nicknameInput" placeholder="💝 输入TA的昵称（必填）" maxlength="20">
-
         <div class="upload-area" id="uploadTrigger">
           <span class="upload-icon">🖼️</span>
           <div class="upload-text">点击选择照片（2～100张）</div>
@@ -813,13 +729,11 @@
         </div>
         <input type="file" id="fileInput" multiple accept="image/*" style="display:none;">
         <div class="preview-grid" id="previewGrid"></div>
-
         <div class="message-section">
           <label class="message-label">💬 想对TA说的话（选填）</label>
           <textarea class="message-textarea" id="messageInput" placeholder="对不起，那天是我太冲动了..." maxlength="200"></textarea>
           <div class="char-count"><span id="charCount">0</span>/200</div>
         </div>
-
         <div class="voice-section">
           <label class="message-label">🎙️ 语音留言（选填，最长60秒）</label>
           <div class="voice-row">
@@ -829,7 +743,6 @@
           </div>
           <div class="voice-status" id="voiceStatus"></div>
         </div>
-
         <label class="message-label">🎵 选择背景音乐</label>
         <div class="music-row">
           <select class="select-field" id="musicSelect">
@@ -839,11 +752,9 @@
           </select>
           <button class="preview-btn" id="previewMusicBtn">▶ 试听</button>
         </div>
-
         <label class="message-label">❓ 设置专属问题（选填）</label>
         <input type="text" class="input-field" id="questionInput" placeholder="比如：我们第一次约会是在哪里？" maxlength="100">
         <input type="text" class="input-field" id="answerInput" placeholder="答案（对方需答对才能看到原谅按钮）" maxlength="50">
-
         <button class="btn" id="generateBtn" disabled>🔗 生成专属链接</button>
         <div class="progress-wrap" id="progressWrap" style="display:none;">
           <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
@@ -882,6 +793,8 @@
       let previewInterval = null;
       let recTimerInterval = null;
       let recSeconds = 0;
+      // ★ FIX 录音: 用标志位防止 mouseleave/touchcancel 在未录音时误触发，以及防止重复触发
+      let isRecording = false;
 
       function checkGenerateBtn() {
         generateBtn.disabled = !(nicknameInput.value.trim() && selectedFiles.length >= 2);
@@ -890,23 +803,33 @@
       nicknameInput.addEventListener('input', checkGenerateBtn);
       messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
 
-      // 录音（含计时）
-      voiceBtn.addEventListener('touchstart', startRec, { passive: false });
-      voiceBtn.addEventListener('mousedown', startRec);
-      voiceBtn.addEventListener('touchend', stopRec);
-      voiceBtn.addEventListener('mouseup', stopRec);
-      voiceBtn.addEventListener('touchcancel', stopRec);
-      voiceBtn.addEventListener('mouseleave', stopRec);
+      // ★ FIX 录音: 只绑定 touchstart/touchend（移动端）和 mousedown/mouseup（桌面端），避免重复触发
+      // 移动端 touchstart 会同时触发 mousedown，用 preventDefault 阻止
+      voiceBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRec(); }, { passive: false });
+      voiceBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRec(); }, { passive: false });
+      voiceBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); stopRec(); }, { passive: false });
+      voiceBtn.addEventListener('mousedown', (e) => { if (e.pointerType === 'touch') return; startRec(); });
+      voiceBtn.addEventListener('mouseup', (e) => { if (e.pointerType === 'touch') return; stopRec(); });
+      // mouseleave 只在确实在录音时才停止，避免误触
+      voiceBtn.addEventListener('mouseleave', () => { if (isRecording) stopRec(); });
 
-      function startRec(e) {
-        e.preventDefault();
+      function startRec() {
+        if (isRecording) return; // 防止重复触发
         if (!navigator.mediaDevices?.getUserMedia) { alert('浏览器不支持录音，请改用文字留言'); return; }
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          isRecording = true;
           mediaRecorder = new MediaRecorder(stream);
           audioChunks = [];
           recSeconds = 0;
+          voiceDuration.textContent = '0s';
+
           mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
           mediaRecorder.onstop = () => {
+            // ★ FIX: onstop 里确保计时器已停（双重保障）
+            clearInterval(recTimerInterval);
+            recTimerInterval = null;
+            isRecording = false;
+
             const blob = new Blob(audioChunks, { type: 'audio/webm' });
             const reader = new FileReader();
             reader.onload = () => {
@@ -916,36 +839,54 @@
               voiceActions.innerHTML = `<button class="replay-btn" id="replayVoiceBtn">🔊 回放</button> <button class="replay-btn" id="rerecordBtn">🔄 重录</button>`;
               document.getElementById('replayVoiceBtn').addEventListener('click', () => { new Audio(voiceBase64).play(); });
               document.getElementById('rerecordBtn').addEventListener('click', () => {
-                voiceBase64 = null; voiceActions.innerHTML = '';
-                voiceStatus.textContent = ''; voiceDuration.textContent = '';
-                voiceBtn.style.display = 'inline-block'; voiceActions.style.display = 'none';
+                voiceBase64 = null;
+                voiceActions.innerHTML = '';
+                voiceStatus.textContent = '';
+                voiceDuration.textContent = '';
+                voiceBtn.style.display = 'inline-block';
+                voiceActions.style.display = 'none';
               });
               voiceBtn.style.display = 'none';
               voiceActions.style.display = 'inline';
             };
             reader.readAsDataURL(blob);
           };
+
           mediaRecorder.start();
           voiceBtn.classList.add('recording');
           voiceBtn.textContent = '🎤 松开结束';
           voiceStatus.textContent = '🔴 录音中...';
+
+          // ★ FIX: 先清除旧计时器再开新的
+          clearInterval(recTimerInterval);
           recTimerInterval = setInterval(() => {
             recSeconds++;
             voiceDuration.textContent = recSeconds + 's';
             if (recSeconds >= 60) stopRec();
           }, 1000);
+
         }).catch(() => alert('无法访问麦克风，请检查权限或改用文字留言'));
       }
 
       function stopRec() {
+        // ★ FIX: 立即清除计时器，不管后续状态如何
         clearInterval(recTimerInterval);
-        if (mediaRecorder?.state === 'recording') {
-          mediaRecorder.stop();
-          mediaRecorder.stream.getTracks().forEach(t => t.stop());
-        }
+        recTimerInterval = null;
+
         voiceBtn.classList.remove('recording');
         voiceBtn.textContent = '🎤 按住录音';
-        if (!voiceBase64) { voiceStatus.textContent = ''; voiceDuration.textContent = ''; }
+
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+          mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        } else {
+          // 未真正开始录音就松开，重置状态
+          isRecording = false;
+          if (!voiceBase64) {
+            voiceStatus.textContent = '';
+            voiceDuration.textContent = '';
+          }
+        }
       }
 
       // 照片上传
@@ -956,6 +897,7 @@
         selectedFiles = [...selectedFiles, ...files].slice(0, 100);
         renderPreview();
         checkGenerateBtn();
+        fileInput.value = ''; // 允许重复选同一文件
       });
 
       function renderPreview() {
@@ -970,8 +912,7 @@
             item.className = 'preview-item';
             item.innerHTML = `<img src="${ev.target.result}" class="preview-thumb"><button class="preview-delete" data-idx="${idx}">✕</button>`;
             item.querySelector('.preview-delete').addEventListener('click', () => {
-              selectedFiles.splice(idx, 1);
-              renderPreview(); checkGenerateBtn();
+              selectedFiles.splice(idx, 1); renderPreview(); checkGenerateBtn();
             });
             previewGrid.appendChild(item);
           };
@@ -979,13 +920,12 @@
         }
         if (selectedFiles.length > 20) {
           const more = document.createElement('div');
-          more.style.cssText = 'grid-column:span 2; font-size:12px; color:var(--text-light); text-align:center; padding:8px;';
+          more.style.cssText = 'grid-column:span 2;font-size:12px;color:var(--text-light);text-align:center;padding:8px;';
           more.textContent = '···还有 ' + (selectedFiles.length - 20) + ' 张';
           previewGrid.appendChild(more);
         }
       }
 
-      // 音乐试听
       function stopPreview() {
         if (previewInterval) { clearInterval(previewInterval); previewInterval = null; }
         if (audioCtx) { audioCtx.close(); audioCtx = null; }
@@ -997,30 +937,24 @@
         if (sel === 'none') { alert('请先选择一首音乐'); return; }
         try {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const notes = {
-            melody1: [523,659,784,1047,784,659,523,440],
-            melody2: [392,440,523,659,523,440,392,330]
-          }[sel] || [];
+          const notes = { melody1: [523,659,784,1047,784,659,523,440], melody2: [392,440,523,659,523,440,392,330] }[sel] || [];
           let ni = 0;
           function playNote() {
             if (!audioCtx) return;
-            const o = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
             o.type = 'sine'; o.frequency.value = notes[ni % notes.length];
             g.gain.setValueAtTime(0.18, audioCtx.currentTime);
             g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.3);
             o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + 1.3);
-            ni++;
+            o.start(); o.stop(audioCtx.currentTime + 1.3); ni++;
           }
-          playNote();
-          previewMusicBtn.textContent = '⏹ 停止';
+          playNote(); previewMusicBtn.textContent = '⏹ 停止';
           previewInterval = setInterval(playNote, 1900);
           setTimeout(() => { if (previewInterval) stopPreview(); }, 6000);
         } catch(e) { alert('试听失败，但音乐仍会包含在胶囊中'); stopPreview(); }
       });
 
-      // 生成链接
+      // ★ FIX 上传: 分批写入图片，避免单次写入超大数据导致超时
       generateBtn.addEventListener('click', async () => {
         if (selectedFiles.length < 2 || !nicknameInput.value.trim()) return;
         generateBtn.disabled = true;
@@ -1029,83 +963,107 @@
 
         const total = selectedFiles.length;
         const imagesBase64 = [];
-        const batchSize = 8;
-        const estimatedTime = Math.ceil(total / batchSize) * 2;
-        progressLabel.textContent = `预计需要约 ${estimatedTime} 秒`;
+        const batchSize = 5; // 每批处理5张，减小单批数据量
+        progressLabel.textContent = `正在压缩图片 (0/${total})...`;
 
+        // 第一步：本地压缩图片
         for (let i = 0; i < total; i += batchSize) {
           const batch = selectedFiles.slice(i, i + batchSize);
           const results = await Promise.all(batch.map(f => compressImage(f)));
           imagesBase64.push(...results);
-          const pct = Math.round(((i + batch.length) / total) * 90);
-          progressFill.style.width = pct + '%';
-          progressLabel.textContent = `已处理 ${Math.min(i + batch.length, total)}/${total} 张，请稍候...`;
+          const done = Math.min(i + batch.length, total);
+          progressFill.style.width = Math.round((done / total) * 60) + '%';
+          progressLabel.textContent = `正在压缩图片 (${done}/${total})...`;
+          // 让浏览器喘口气，避免 UI 卡死
+          await new Promise(r => setTimeout(r, 10));
         }
 
-        progressLabel.textContent = '正在上传到云端...';
-        progressFill.style.width = '95%';
+        progressFill.style.width = '65%';
+        progressLabel.textContent = '正在创建胶囊...';
 
-        const capsuleData = {
+        // 第二步：先写元数据（不含图片），获取 token
+        const metaData = {
           nickname: nicknameInput.value.trim(),
           message: messageInput.value.trim() || '',
           voice: voiceBase64 || null,
           music: musicSelect.value,
           question: questionInput.value.trim() || '',
           answer: answerInput.value.trim() || '',
-          images: imagesBase64,
-          viewed: false
+          viewed: false,
+          imageCount: imagesBase64.length
         };
 
         let newToken;
         try {
           const newRef = db.ref('capsules').push();
-          await newRef.set(capsuleData);
           newToken = newRef.key;
+          await newRef.set(metaData);
         } catch(err) {
+          showUploadError(err.message || '未知错误');
+          return;
+        }
+
+        progressFill.style.width = '70%';
+        progressLabel.textContent = `正在上传图片 (0/${total})...`;
+
+        // 第三步：分批上传图片，每批 5 张
+        const uploadBatchSize = 5;
+        try {
+          for (let i = 0; i < imagesBase64.length; i += uploadBatchSize) {
+            const batch = imagesBase64.slice(i, i + uploadBatchSize);
+            const batchObj = {};
+            batch.forEach((img, j) => { batchObj[i + j] = img; });
+            await db.ref('capsules/' + newToken + '/images').update(batchObj);
+            const done = Math.min(i + uploadBatchSize, total);
+            progressFill.style.width = (70 + Math.round((done / total) * 28)) + '%';
+            progressLabel.textContent = `正在上传图片 (${done}/${total})...`;
+          }
+        } catch(err) {
+          // 图片上传失败时清理元数据
+          await db.ref('capsules/' + newToken).remove().catch(() => {});
+          showUploadError(err.message || '图片上传失败');
+          return;
+        }
+
+        progressFill.style.width = '100%';
+        progressLabel.textContent = '✅ 上传完成！';
+
+        function showUploadError(msg) {
           progressWrap.style.display = 'none';
           generateBtn.disabled = false;
           generateBtn.textContent = '🔗 生成专属链接';
-          const errMsg = err.message || '未知错误';
-          alert('❌ 上传失败：' + errMsg + '\n\n请检查：\n1. Firebase 安全规则是否已保存\n2. 网络是否正常\n3. 照片数量是否过多');
-          return;
+          alert('❌ 上传失败：' + msg + '\n\n请检查：\n1. Firebase 安全规则是否已设为允许读写\n2. 网络连接是否正常\n3. 尝试减少照片数量或压缩质量');
         }
-        const link = window.location.href.split('?')[0] + '?token=' + newToken;
 
         let created = JSON.parse(localStorage.getItem('created_tokens') || '[]');
         created.push(newToken);
         localStorage.setItem('created_tokens', JSON.stringify(created));
 
-        progressFill.style.width = '100%';
+        const link = window.location.href.split('?')[0] + '?token=' + newToken;
 
         container.innerHTML = `
-          <div style="font-size:52px; margin-bottom:14px;" class="capsule-drop">✅</div>
+          <div style="font-size:52px;margin-bottom:14px;" class="capsule-drop">✅</div>
           <h1 class="fade-in">胶囊生成成功！</h1>
           <p class="sub-title fade-in-delay">专属链接已就绪，发给TA吧</p>
-          <div style="background:var(--pink-bg); border-radius:16px; padding:14px; word-break:break-all; font-size:11px; color:var(--pink-deep); margin:16px 0; border:1px solid var(--pink-pale);" class="fade-in-delay">${link}</div>
+          <div style="background:var(--pink-bg);border-radius:16px;padding:14px;word-break:break-all;font-size:11px;color:var(--pink-deep);margin:16px 0;border:1px solid var(--pink-pale);" class="fade-in-delay">${link}</div>
           <button class="btn fade-in-delay" id="copyBtn">📋 一键复制链接</button>
-          <p id="viewStatus" style="color:var(--text-light); margin-top:16px; font-size:13px;">⏳ 等待TA打开...</p>
+          <p id="viewStatus" style="color:var(--text-light);margin-top:16px;font-size:13px;">⏳ 等待TA打开...</p>
           <p class="note">💡 对方点击"原谅"后，云端数据自动删除，但TA手机上将永久保留这份回忆</p>
         `;
 
         db.ref('capsules/' + newToken + '/viewed').on('value', snap => {
-          if (snap.val() === true) {
-            const vs = document.getElementById('viewStatus');
-            if (vs) vs.textContent = '✅ TA已打开胶囊 💕';
-          }
+          if (snap.val() === true) { const vs = document.getElementById('viewStatus'); if (vs) vs.textContent = '✅ TA已打开胶囊 💕'; }
         });
 
         document.getElementById('copyBtn').addEventListener('click', () => {
-          const copy = () => {
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(link).then(() => alert('链接已复制！快去发给TA吧 💕'));
-            } else {
-              const ta = document.createElement('textarea');
-              ta.value = link; document.body.appendChild(ta); ta.select();
-              document.execCommand('copy'); document.body.removeChild(ta);
-              alert('链接已复制！快去发给TA吧 💕');
-            }
-          };
-          copy();
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(link).then(() => alert('链接已复制！快去发给TA吧 💕'));
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = link; document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+            alert('链接已复制！快去发给TA吧 💕');
+          }
         });
       });
     }
@@ -1121,7 +1079,7 @@
       if (localData) { buildMemorialUI(JSON.parse(localData)); return; }
 
       container.innerHTML = `
-        <div style="font-size:40px; margin:20px 0;">💊</div>
+        <div style="font-size:40px;margin:20px 0;">💊</div>
         <h1>胶囊加载中</h1>
         <div class="progress-bar" style="margin:20px 0;"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
         <p class="sub-title">请稍等片刻...</p>
@@ -1136,14 +1094,25 @@
           db.ref('capsules/' + token).once('value').then(cs => {
             clearInterval(pt);
             const data = cs.val();
-            if (data) { localStorage.setItem(localKey, JSON.stringify(data)); if (pf) pf.style.width = '100%'; setTimeout(() => buildMemorialUI(data), 300); }
-            else { container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>'; }
+            if (data) {
+              // ★ FIX: 接收端加载时，把 images 对象（分批写入变成了 object）转成数组
+              if (data.images && !Array.isArray(data.images)) {
+                data.images = Object.keys(data.images).sort((a,b) => Number(a)-Number(b)).map(k => data.images[k]);
+              }
+              localStorage.setItem(localKey, JSON.stringify(data));
+              if (pf) pf.style.width = '100%';
+              setTimeout(() => buildMemorialUI(data), 300);
+            } else { container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>'; }
           });
         } else {
           db.ref('capsules/' + token).once('value').then(cs => {
             clearInterval(pt);
             const data = cs.val();
             if (!data) { container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>'; return; }
+            // ★ FIX: 同上，兼容分批写入的 images 格式
+            if (data.images && !Array.isArray(data.images)) {
+              data.images = Object.keys(data.images).sort((a,b) => Number(a)-Number(b)).map(k => data.images[k]);
+            }
             if (!data.viewed) db.ref('capsules/' + token + '/viewed').set(true);
             if (pf) pf.style.width = '100%';
             setTimeout(() => buildReceiverUI(data, token, localKey), 300);
@@ -1152,40 +1121,27 @@
       }).catch(() => { clearInterval(pt); container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络后刷新重试</p>'; });
     }
 
-    // ================= 优化后的拆信步骤逻辑 =================
     function showLetterStep(message, area, cb) {
-      // 允许文本自动将换行符 \n 转为 <br> 以保留分段排版
       const formattedMessage = escapeHtml(message).replace(/\n/g, '<br>');
-
       area.innerHTML = `
         <h1 class="fade-in">💌 TA给你写了一封信</h1>
         <p class="sub-title fade-in-delay">点一点信封，拆开看看吧</p>
-        
         <div class="envelope-wrapper fade-in-delay">
           <div class="envelope-container" id="envBox">
             <div class="envelope-back"></div>
-            
             <div class="letter-paper" id="envPaper">
               <div class="letter-deco">🌸</div>
               <div class="letter-text">${formattedMessage}</div>
             </div>
-            
             <div class="envelope-front">
-              <div class="env-left"></div>
-              <div class="env-right"></div>
-              <div class="env-bottom"></div>
+              <div class="env-left"></div><div class="env-right"></div><div class="env-bottom"></div>
             </div>
-            
             <div class="envelope-flap" id="envFlap"></div>
-            <div class="envelope-seal" id="envSeal">
-              <div class="seal-inner">💝</div>
-            </div>
-            
+            <div class="envelope-seal" id="envSeal"><div class="seal-inner">💝</div></div>
             <p class="envelope-hint" id="envHint">点击拆开信封</p>
           </div>
         </div>
-        
-        <div id="letterAction" style="opacity:0; transition:opacity 0.5s; margin-top:10px; text-align:center;"></div>
+        <div id="letterAction" style="opacity:0;transition:opacity 0.5s;margin-top:10px;text-align:center;"></div>
       `;
 
       const envBox = document.getElementById('envBox');
@@ -1197,22 +1153,12 @@
       envBox.addEventListener('click', () => {
         if (envBox.classList.contains('is-open')) return;
         envBox.classList.add('is-open');
-
-        // 1. 封泥轻巧地弹开并消失
         seal.classList.add('broken');
-        
-        // 2. 信封盖子顺滑翻开
         flap.classList.add('open');
-
-        // 3. 稍作停顿后，信纸缓缓向上滑出
-        setTimeout(() => {
-          paper.classList.add('show');
-        }, 400);
-
-        // 4. 等待阅读展开后，显示继续按钮
+        setTimeout(() => { paper.classList.add('show'); }, 400);
         setTimeout(() => {
           const btn = document.createElement('button');
-          btn.className = 'btn'; 
+          btn.className = 'btn';
           btn.innerHTML = '收下这封信，继续 →';
           actionArea.appendChild(btn);
           actionArea.style.opacity = 1;
@@ -1220,9 +1166,7 @@
         }, 1800);
       });
     }
-    // =========================================================
 
-    // ===== 语音步骤 =====
     function showVoiceStep(voice, area, cb) {
       area.innerHTML = `
         <h1>🎙️ TA还给你录了一段话</h1>
@@ -1242,11 +1186,10 @@
 
       playBtn.addEventListener('click', () => {
         if (audio.paused) {
-          audio.play();
-          playBtn.classList.add('playing');
+          audio.play(); playBtn.classList.add('playing');
           timer = setInterval(() => {
             const s = Math.floor(audio.currentTime);
-            timeEl.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+            timeEl.textContent = Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
           }, 500);
         } else {
           audio.pause(); playBtn.classList.remove('playing'); clearInterval(timer);
@@ -1256,7 +1199,6 @@
       document.getElementById('vContinueBtn').addEventListener('click', () => { audio.pause(); if (cb) cb(); });
     }
 
-    // ===== 幻灯片 =====
     function playSlideshow(images, music, area, cb) {
       let audioCtx = null, musicOn = false;
 
@@ -1272,11 +1214,11 @@
           function p() {
             if (!audioCtx) return;
             const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-            o.type = 'sine'; o.frequency.value = notes[ni % notes.length];
+            o.type = 'sine'; o.frequency.value = notes[ni%notes.length];
             g.gain.setValueAtTime(0.12, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.8);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+1.8);
             o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + 1.8); ni++;
+            o.start(); o.stop(audioCtx.currentTime+1.8); ni++;
           }
           p(); musicOn = true;
           window._musicInterval = setInterval(p, 2400);
@@ -1287,10 +1229,10 @@
         if (audioCtx) audioCtx.close(); musicOn = false;
       }
 
-      const phrases = ['这些画面，你还记得吗...', '每一个瞬间，都是真的...', '回忆不会说谎...', '那时候的我们，多好啊...', 'TA一直记得...', '珍惜每一次在一起...'];
+      const phrases = ['这些画面，你还记得吗...','每一个瞬间，都是真的...','回忆不会说谎...','那时候的我们，多好啊...','TA一直记得...','珍惜每一次在一起...'];
       area.innerHTML = `
         <div class="slideshow-viewer" id="slideViewer">
-          ${images.map((src, i) => `<img src="${src}" class="${i === 0 ? 'active' : ''}">`).join('')}
+          ${images.map((src, i) => `<img src="${src}" class="${i===0?'active':''}">`).join('')}
           <div class="slide-counter" id="slideCounter">1 / ${images.length}</div>
           <div class="slide-phrase" id="slidePhrase">回忆缓缓展开...</div>
         </div>
@@ -1306,8 +1248,8 @@
         imgs[cur].classList.remove('active'); cur++;
         if (cur < images.length) {
           imgs[cur].classList.add('active');
-          counter.textContent = (cur + 1) + ' / ' + images.length;
-          if (phrases[cur - 1]) phrase.textContent = phrases[cur - 1];
+          counter.textContent = (cur+1) + ' / ' + images.length;
+          if (phrases[cur-1]) phrase.textContent = phrases[cur-1];
           window._slideTimer = setTimeout(next, 3500);
         } else {
           phrase.textContent = '回忆播完了，但那些美好从未离开 ✨';
@@ -1319,7 +1261,6 @@
       window._slideTimer = setTimeout(next, 3500);
     }
 
-    // ===== 接收方完整流程 =====
     function buildReceiverUI(data, token, localKey) {
       const container = document.getElementById('mainContainer');
       const { nickname, message, music, question, answer, images, voice } = data;
@@ -1349,19 +1290,13 @@
         });
       });
 
-      function afterLetter() {
-        if (hasVoice) showVoiceStep(voice, area, afterVoice);
-        else afterVoice();
-      }
-      function afterVoice() {
-        if (hasQuiz) showQuiz();
-        else showCoupon();
-      }
+      function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
+      function afterVoice() { if (hasQuiz) showQuiz(); else showCoupon(); }
 
       function showQuiz() {
         area.innerHTML = `
           <h1>❓ 在原谅之前...</h1>
-          <p style="color:var(--text-mid); margin:16px 0; font-size:15px; line-height:1.7;">${escapeHtml(question)}</p>
+          <p style="color:var(--text-mid);margin:16px 0;font-size:15px;line-height:1.7;">${escapeHtml(question)}</p>
           <input type="text" class="quiz-input" id="quizAns" placeholder="请输入你的答案">
           <p class="quiz-error" id="quizErr">答案不对哦 💭 再想想</p>
           <button class="btn" id="quizBtn">✅ 确认答案</button>
@@ -1370,7 +1305,7 @@
           if (document.getElementById('quizAns').value.trim() === answer) showCoupon();
           else document.getElementById('quizErr').style.display = 'block';
         });
-        document.getElementById('quizAns').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('quizBtn').click(); });
+        document.getElementById('quizAns').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('quizBtn').click(); });
       }
 
       function showCoupon() {
@@ -1390,9 +1325,9 @@
           await db.ref('capsules/' + token).remove();
           launchFireworks();
           area.innerHTML = `
-            <div style="font-size:60px; margin:10px 0;" class="capsule-drop">🌸</div>
+            <div style="font-size:60px;margin:10px 0;" class="capsule-drop">🌸</div>
             <div class="forgiven-msg fade-in">和好成功！<br>你们已经和好如初啦 💕</div>
-            <p style="color:var(--text-light); margin-top:14px; font-size:13px;" class="fade-in-delay">这份回忆将永远为你留存</p>
+            <p style="color:var(--text-light);margin-top:14px;font-size:13px;" class="fade-in-delay">这份回忆将永远为你留存</p>
             <button class="memorial-btn fade-in-delay2" id="memBtn">📽️ 再次播放回忆</button>
           `;
           document.getElementById('memBtn').addEventListener('click', () => buildMemorialUI(data));
@@ -1400,19 +1335,22 @@
       }
     }
 
-    // ===== 预览模式 =====
     function buildSenderPreview(token) {
       const container = document.getElementById('mainContainer');
       container.innerHTML = '<div style="font-size:36px;margin:20px 0;">🔍</div><h1>加载预览中...</h1>';
       db.ref('capsules/' + token).once('value').then(snap => {
         const data = snap.val();
         if (!data) { container.innerHTML = '<h1>😔</h1><p class="error-text">链接已失效</p>'; return; }
+        // ★ FIX: 预览模式同样兼容分批写入的 images 格式
+        if (data.images && !Array.isArray(data.images)) {
+          data.images = Object.keys(data.images).sort((a,b) => Number(a)-Number(b)).map(k => data.images[k]);
+        }
         const { nickname, message, music, images, voice, viewed } = data;
         const hasMsg = message?.trim().length > 0;
         const hasVoice = voice?.length > 0;
 
         container.innerHTML = `
-          <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊（预览）${viewed ? ' · ✅ 对方已读' : ' · ⏳ 未读'}</div>
+          <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊（预览）${viewed?' · ✅ 对方已读':' · ⏳ 未读'}</div>
           <h1>📸 胶囊预览</h1>
           <p class="sub-title">这是你制作的胶囊，对方将看到以下内容</p>
           <div id="contentArea"></div>
@@ -1431,17 +1369,13 @@
             else afterLetter();
           });
         });
-        function afterLetter() {
-          if (hasVoice) showVoiceStep(voice, area, afterVoice);
-          else afterVoice();
-        }
+        function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
         function afterVoice() {
           area.innerHTML = '<h1>✅ 预览结束</h1><p style="color:var(--text-light);margin-top:12px;">这就是对方将看到的完整内容。真正的"原谅"按钮只会出现在TA的链接里。</p>';
         }
       });
     }
 
-    // ===== 纪念册模式 =====
     function buildMemorialUI(data) {
       const container = document.getElementById('mainContainer');
       const { nickname, message, music, images, voice } = data;
@@ -1468,12 +1402,9 @@
           else afterLetter();
         });
       });
-      function afterLetter() {
-        if (hasVoice) showVoiceStep(voice, area, afterVoice);
-        else afterVoice();
-      }
+      function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
       function afterVoice() {
-        area.innerHTML = '<div style="font-size:48px; margin:16px 0;">💕</div><p style="color:var(--text-light);">这些回忆，永远属于你们。</p>';
+        area.innerHTML = '<div style="font-size:48px;margin:16px 0;">💕</div><p style="color:var(--text-light);">这些回忆，永远属于你们。</p>';
       }
     }
 
