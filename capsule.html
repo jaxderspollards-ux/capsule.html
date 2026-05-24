@@ -280,58 +280,132 @@
     .start-emoji { font-size: 52px; margin-bottom: 12px; display: block; }
     .start-desc { color: var(--text-mid); font-size: 14px; margin: 10px 0 18px; line-height: 1.8; }
 
-    /* 信封动画 */
-    .envelope-wrapper { text-align: center; margin: 20px 0; }
+    /* ================= 优化后的信封动画与样式 ================= */
+    .envelope-wrapper { 
+      position: relative; margin: 30px auto 10px; 
+      min-height: 310px; display: flex; justify-content: center; align-items: flex-end; 
+    }
     .envelope-container {
-      position: relative; width: 260px; height: 180px;
-      margin: 0 auto 12px; cursor: pointer;
-      filter: drop-shadow(0 12px 30px rgba(196,69,105,0.2));
-      transition: transform 0.2s;
+      position: relative; width: 280px; height: 180px; cursor: pointer;
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      animation: gentleFloat 3.5s ease-in-out infinite;
+      filter: drop-shadow(0 15px 25px rgba(196,69,105,0.15));
     }
-    .envelope-container:hover { transform: translateY(-3px); }
-    .envelope-body {
-      position: absolute; bottom: 0; width: 100%; height: 130px;
-      background: linear-gradient(160deg, #fff8f0 0%, #fdebd0 100%);
-      border-radius: 6px;
-      box-shadow: 0 6px 20px rgba(139,90,43,0.12);
+    .envelope-container.is-open {
+      animation: none;
+      transform: translateY(15px) scale(0.96);
+      cursor: default;
     }
+    @keyframes gentleFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    /* 信封内背 */
+    .envelope-back {
+      position: absolute; inset: 0;
+      background: linear-gradient(145deg, #e6cdb3, #f2e2ce);
+      border-radius: 8px;
+    }
+    
+    /* 信封前面板组合 (运用 clip-path 实现真实的物理折叠感) */
+    .envelope-front {
+      position: absolute; inset: 0; z-index: 3;
+      pointer-events: none; border-radius: 8px;
+    }
+    .env-left {
+      position: absolute; left: 0; top: 0; width: 50%; height: 100%;
+      background: linear-gradient(to right, #fdf5eb, #f2e1cc);
+      clip-path: polygon(0 0, 100% 50%, 0 100%);
+    }
+    .env-right {
+      position: absolute; right: 0; top: 0; width: 50%; height: 100%;
+      background: linear-gradient(to left, #fdf5eb, #f2e1cc);
+      clip-path: polygon(100% 0, 0 50%, 100% 100%);
+    }
+    .env-bottom {
+      position: absolute; left: 0; bottom: 0; width: 100%; height: 65%;
+      background: linear-gradient(to top, #fffdf8, #faeedb);
+      clip-path: polygon(0 100%, 50% 0, 100% 100%);
+    }
+    
+    /* 顶部可翻折盖子 */
     .envelope-flap {
-      position: absolute; top: 0; width: 100%; height: 92px;
-      background: linear-gradient(145deg, #fef3e0, #f5d6a8);
-      clip-path: polygon(50% 100%, 0 0, 100% 0);
+      position: absolute; top: 0; left: 0; width: 100%; height: 62%;
+      background: linear-gradient(to bottom, #fffdf8, #efe0cb);
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
       transform-origin: top center;
-      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 2;
+      transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1), z-index 0s 0.35s;
+      z-index: 4;
+      border-radius: 8px 8px 0 0;
     }
-    .envelope-flap.open { transform: rotateX(180deg); }
+    .envelope-flap.open {
+      transform: rotateX(180deg);
+      z-index: 1; /* 翻开后躲到信纸后面 */
+    }
+    
+    /* 封泥 */
     .envelope-seal {
-      position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
-      width: 42px; height: 42px;
-      background: linear-gradient(135deg, var(--pink-light), var(--pink-deep));
-      border-radius: 50%; z-index: 3;
-      box-shadow: 0 4px 14px rgba(196,69,105,0.35);
+      position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%);
+      width: 48px; height: 48px;
+      background: linear-gradient(135deg, var(--pink-bright), var(--pink-deep));
+      border-radius: 50%; z-index: 5;
+      box-shadow: 0 6px 16px rgba(196,69,105,0.3), inset 0 2px 4px rgba(255,255,255,0.3);
       display: flex; justify-content: center; align-items: center;
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .seal-inner {
+      width: 36px; height: 36px; border: 1.5px dashed rgba(255,255,255,0.6);
+      border-radius: 50%; display: flex; justify-content: center; align-items: center;
       font-size: 18px; color: white;
-      transition: opacity 0.4s ease, transform 0.4s ease;
     }
-    .envelope-seal.hidden { opacity: 0; transform: translateX(-50%) scale(0.5); }
+    .envelope-seal.broken {
+      transform: translate(-50%, -50%) scale(1.4);
+      opacity: 0;
+    }
+    
+    /* 信纸实体 */
     .letter-paper {
-      position: absolute; top: 15px; left: 8%; width: 84%; height: 0;
-      background: #fffef9; border-radius: 4px;
-      box-shadow: 0 3px 12px rgba(0,0,0,0.08);
-      overflow: hidden;
-      transition: height 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.3s;
-      z-index: 1; padding: 0 16px;
+      position: absolute; bottom: 8px; left: 12px; right: 12px;
+      height: 160px; /* 初始收进信封内 */
+      background: #fffdfa linear-gradient(135deg, rgba(255,240,245,0.4), transparent);
+      border: 1px solid rgba(255,182,193,0.3);
+      border-radius: 6px;
+      padding: 24px 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+      transition: all 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+      z-index: 2; /* 藏在前面板之下 */
+      display: flex; flex-direction: column;
     }
-    .letter-paper.show { height: 150px; }
+    .letter-paper.show {
+      transform: translateY(-110px); /* 向上抽出 */
+      height: 240px; /* 展开高度 */
+      box-shadow: 0 12px 35px rgba(196,69,105,0.18);
+    }
+    .letter-deco { position: absolute; top: 12px; right: 14px; font-size: 16px; opacity: 0.8; }
     .letter-text {
       font-family: 'Noto Serif SC', serif;
-      font-size: 13px; color: #4a3728; line-height: 1.9;
-      padding-top: 18px;
-      opacity: 0; transition: opacity 0.5s ease 0.8s;
+      font-size: 14px; color: #5a3c43; line-height: 1.9;
+      opacity: 0; transition: opacity 0.8s ease 0.5s;
+      overflow-y: auto; scrollbar-width: thin;
+      scrollbar-color: rgba(196,69,105,0.2) transparent;
+      flex: 1; text-align: justify;
+      margin-top: 10px;
+      padding-right: 5px;
     }
+    .letter-text::-webkit-scrollbar { width: 4px; }
+    .letter-text::-webkit-scrollbar-track { background: transparent; }
+    .letter-text::-webkit-scrollbar-thumb { background: rgba(196,69,105,0.2); border-radius: 2px; }
     .letter-paper.show .letter-text { opacity: 1; }
-    .envelope-hint { font-size: 12px; color: var(--text-light); margin-top: 8px; }
+    
+    /* 操作提示 */
+    .envelope-hint {
+      position: absolute; bottom: -35px; left: 0; width: 100%;
+      font-size: 13px; color: var(--text-light); text-align: center;
+      transition: opacity 0.4s; letter-spacing: 1px;
+    }
+    .envelope-container.is-open .envelope-hint { opacity: 0; }
+    /* ==================================================== */
 
     /* 幻灯片 */
     .slideshow-viewer {
@@ -585,7 +659,6 @@
     function applyTheme(theme) {
       document.body.className = theme === 'pink' ? '' : 'theme-' + theme;
       currentTheme = theme;
-      // 更新粒子颜色
       const themeColors = {
         pink: ['#ff6b9d','#ffd1dc','#c44569'],
         blue: ['#4fc3f7','#b3e5fc','#1565c0'],
@@ -875,7 +948,7 @@
         if (!voiceBase64) { voiceStatus.textContent = ''; voiceDuration.textContent = ''; }
       }
 
-      // 照片上传（支持单张删除）
+      // 照片上传
       uploadTrigger.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', (e) => {
         const files = Array.from(e.target.files);
@@ -983,9 +1056,19 @@
           viewed: false
         };
 
-        const newRef = db.ref('capsules').push();
-        await newRef.set(capsuleData);
-        const newToken = newRef.key;
+        let newToken;
+        try {
+          const newRef = db.ref('capsules').push();
+          await newRef.set(capsuleData);
+          newToken = newRef.key;
+        } catch(err) {
+          progressWrap.style.display = 'none';
+          generateBtn.disabled = false;
+          generateBtn.textContent = '🔗 生成专属链接';
+          const errMsg = err.message || '未知错误';
+          alert('❌ 上传失败：' + errMsg + '\n\n请检查：\n1. Firebase 安全规则是否已保存\n2. 网络是否正常\n3. 照片数量是否过多');
+          return;
+        }
         const link = window.location.href.split('?')[0] + '?token=' + newToken;
 
         let created = JSON.parse(localStorage.getItem('created_tokens') || '[]');
@@ -1069,37 +1152,75 @@
       }).catch(() => { clearInterval(pt); container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络后刷新重试</p>'; });
     }
 
-    // ===== 信封步骤 =====
+    // ================= 优化后的拆信步骤逻辑 =================
     function showLetterStep(message, area, cb) {
+      // 允许文本自动将换行符 \n 转为 <br> 以保留分段排版
+      const formattedMessage = escapeHtml(message).replace(/\n/g, '<br>');
+
       area.innerHTML = `
-        <h1>💌 TA还留了一封信</h1>
-        <div class="envelope-wrapper">
+        <h1 class="fade-in">💌 TA给你写了一封信</h1>
+        <p class="sub-title fade-in-delay">点一点信封，拆开看看吧</p>
+        
+        <div class="envelope-wrapper fade-in-delay">
           <div class="envelope-container" id="envBox">
-            <div class="envelope-body"></div>
-            <div class="envelope-flap" id="envFlap"></div>
-            <div class="envelope-seal" id="envSeal">💌</div>
+            <div class="envelope-back"></div>
+            
             <div class="letter-paper" id="envPaper">
-              <div class="letter-text">${escapeHtml(message)}</div>
+              <div class="letter-deco">🌸</div>
+              <div class="letter-text">${formattedMessage}</div>
             </div>
+            
+            <div class="envelope-front">
+              <div class="env-left"></div>
+              <div class="env-right"></div>
+              <div class="env-bottom"></div>
+            </div>
+            
+            <div class="envelope-flap" id="envFlap"></div>
+            <div class="envelope-seal" id="envSeal">
+              <div class="seal-inner">💝</div>
+            </div>
+            
+            <p class="envelope-hint" id="envHint">点击拆开信封</p>
           </div>
-          <p class="envelope-hint">点击信封，拆开看看</p>
         </div>
+        
+        <div id="letterAction" style="opacity:0; transition:opacity 0.5s; margin-top:10px; text-align:center;"></div>
       `;
-      document.getElementById('envBox').addEventListener('click', () => {
-        const flap = document.getElementById('envFlap');
-        if (flap.classList.contains('open')) return;
+
+      const envBox = document.getElementById('envBox');
+      const flap = document.getElementById('envFlap');
+      const paper = document.getElementById('envPaper');
+      const seal = document.getElementById('envSeal');
+      const actionArea = document.getElementById('letterAction');
+
+      envBox.addEventListener('click', () => {
+        if (envBox.classList.contains('is-open')) return;
+        envBox.classList.add('is-open');
+
+        // 1. 封泥轻巧地弹开并消失
+        seal.classList.add('broken');
+        
+        // 2. 信封盖子顺滑翻开
         flap.classList.add('open');
-        document.getElementById('envPaper').classList.add('show');
-        setTimeout(() => { const s = document.getElementById('envSeal'); if (s) s.classList.add('hidden'); }, 500);
+
+        // 3. 稍作停顿后，信纸缓缓向上滑出
+        setTimeout(() => {
+          paper.classList.add('show');
+        }, 400);
+
+        // 4. 等待阅读展开后，显示继续按钮
         setTimeout(() => {
           const btn = document.createElement('button');
-          btn.className = 'btn'; btn.textContent = '继续 →';
-          btn.style.marginTop = '20px';
-          area.appendChild(btn);
+          btn.className = 'btn'; 
+          btn.innerHTML = '收下这封信，继续 →';
+          actionArea.appendChild(btn);
+          actionArea.style.opacity = 1;
           btn.addEventListener('click', () => { if (cb) cb(); });
-        }, 1600);
+        }, 1800);
       });
     }
+    // =========================================================
 
     // ===== 语音步骤 =====
     function showVoiceStep(voice, area, cb) {
