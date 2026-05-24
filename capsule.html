@@ -4,274 +4,654 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>💊 和好胶囊</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
+    :root {
+      --pink-deep: #c44569;
+      --pink-mid: #e05c8a;
+      --pink-bright: #ff6b9d;
+      --pink-light: #faa2c1;
+      --pink-pale: #ffd1dc;
+      --pink-bg: #fff0f5;
+      --cream: #fffaf8;
+      --text-dark: #3a1a28;
+      --text-mid: #7a4060;
+      --text-light: #b07090;
+      --gold: #d4a853;
+      --shadow-pink: rgba(196,69,105,0.18);
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
-      font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-      background: linear-gradient(135deg, #fce4ec 0%, #ffe0f0 50%, #f8d7e6 100%);
+      font-family: 'Noto Sans SC', 'PingFang SC', sans-serif;
+      background: #1a0a10;
       min-height: 100vh;
       display: flex; justify-content: center; align-items: center;
       padding: 20px;
+      position: relative;
+      overflow-x: hidden;
     }
+
+    /* 背景粒子 */
+    .bg-particles {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      overflow: hidden;
+    }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0;
+      animation: floatUp linear infinite;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(100vh) scale(0); opacity: 0; }
+      10% { opacity: 0.6; }
+      90% { opacity: 0.3; }
+      100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+    }
+
     .container {
-      max-width: 420px; width: 100%;
-      background: rgba(255,255,255,0.88); backdrop-filter: blur(20px);
-      border-radius: 40px; box-shadow: 0 25px 50px rgba(255,105,135,0.2);
-      padding: 30px 25px; text-align: center;
-      max-height: 90vh; overflow-y: auto;
+      max-width: 440px; width: 100%;
+      background: linear-gradient(160deg, rgba(255,255,255,0.97) 0%, rgba(255,240,248,0.97) 100%);
+      backdrop-filter: blur(30px);
+      border-radius: 36px;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,160,200,0.3), inset 0 1px 0 rgba(255,255,255,0.8);
+      padding: 35px 28px;
+      text-align: center;
+      max-height: 92vh; overflow-y: auto;
+      position: relative; z-index: 1;
+      scrollbar-width: thin;
+      scrollbar-color: var(--pink-pale) transparent;
     }
-    h1 { font-size: 24px; color: #d6336c; margin-bottom: 5px; font-weight: 700; }
-    .sub-title { font-size: 14px; color: #e6739f; margin-bottom: 20px; }
+    .container::-webkit-scrollbar { width: 4px; }
+    .container::-webkit-scrollbar-track { background: transparent; }
+    .container::-webkit-scrollbar-thumb { background: var(--pink-pale); border-radius: 2px; }
 
-    .password-input {
-      width: 100%; padding: 14px 20px; border: 2px solid #faa2c1; border-radius: 50px;
-      font-size: 16px; text-align: center; color: #d6336c; background: #fff;
-      outline: none; margin-bottom: 15px;
+    /* 顶部装饰线 */
+    .container::before {
+      content: '';
+      position: absolute; top: 0; left: 10%; right: 10%; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--pink-bright), var(--gold), var(--pink-bright), transparent);
+      border-radius: 0 0 2px 2px;
     }
-    .password-input:focus { border-color: #ff6b9d; }
-    .error-msg { color: #e03131; font-size: 14px; margin-top: 10px; display: none; }
 
-    .input-field {
-      width: 100%; padding: 14px 20px; border: 2px solid #faa2c1; border-radius: 50px;
-      font-size: 16px; text-align: center; color: #d6336c; background: #fff;
-      outline: none; margin-bottom: 15px;
+    h1 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 22px; color: var(--pink-deep); margin-bottom: 6px; font-weight: 700;
+      letter-spacing: 1px;
     }
-    .input-field:focus { border-color: #ff6b9d; }
+    .sub-title { font-size: 13px; color: var(--text-light); margin-bottom: 22px; letter-spacing: 0.5px; }
 
+    /* 密码页 */
+    .lock-icon {
+      width: 72px; height: 72px; margin: 10px auto 20px;
+      background: linear-gradient(135deg, var(--pink-bright), var(--pink-deep));
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      box-shadow: 0 8px 24px var(--shadow-pink);
+      animation: breathe 3s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%,100% { transform: scale(1); box-shadow: 0 8px 24px var(--shadow-pink); }
+      50% { transform: scale(1.05); box-shadow: 0 12px 32px rgba(196,69,105,0.3); }
+    }
+
+    .password-input, .input-field {
+      width: 100%; padding: 14px 20px;
+      border: 1.5px solid var(--pink-pale);
+      border-radius: 50px;
+      font-size: 15px; text-align: center;
+      color: var(--text-dark);
+      background: var(--cream);
+      outline: none; margin-bottom: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      letter-spacing: 2px;
+    }
+    .password-input:focus, .input-field:focus {
+      border-color: var(--pink-bright);
+      box-shadow: 0 0 0 3px rgba(255,107,157,0.12);
+    }
+    .input-field { letter-spacing: 0; }
+
+    .error-msg { color: #e03131; font-size: 13px; margin-top: -8px; margin-bottom: 10px; display: none; }
+
+    /* 上传区域 */
     .upload-area {
-      border: 2px dashed #faa2c1; border-radius: 24px; padding: 20px;
-      background: rgba(255,218,224,0.3); cursor: pointer; margin-bottom: 10px;
+      border: 1.5px dashed var(--pink-light);
+      border-radius: 20px; padding: 22px 16px;
+      background: rgba(255,209,220,0.15);
+      cursor: pointer; margin-bottom: 12px;
+      transition: all 0.2s;
+      position: relative; overflow: hidden;
     }
-    .upload-icon { font-size: 40px; margin-bottom: 8px; }
-    .upload-text { color: #d6336c; font-size: 14px; font-weight: 500; }
-    .upload-count { font-size: 12px; color: #e6739f; margin-top: 5px; }
-    .preview-grid { 
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; 
-      margin: 10px 0; max-height: 200px; overflow-y: auto; padding: 5px;
+    .upload-area:hover { border-color: var(--pink-bright); background: rgba(255,107,157,0.08); }
+    .upload-area:hover .upload-icon { transform: scale(1.1); }
+    .upload-icon { font-size: 36px; margin-bottom: 8px; transition: transform 0.2s; display: block; }
+    .upload-text { color: var(--pink-deep); font-size: 14px; font-weight: 500; }
+    .upload-count { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+    /* 照片预览网格 */
+    .preview-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+      margin: 10px 0; max-height: 220px; overflow-y: auto; padding: 4px;
     }
-    .preview-thumb { 
-      width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; 
-      border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+    .preview-item {
+      position: relative; aspect-ratio: 1;
+    }
+    .preview-thumb {
+      width: 100%; height: 100%; object-fit: cover; border-radius: 10px;
+      border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: block;
+    }
+    .preview-delete {
+      position: absolute; top: -5px; right: -5px;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--pink-deep); color: white;
+      border: none; cursor: pointer; font-size: 11px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 2; line-height: 1;
     }
 
-    .message-section { margin: 15px 0; text-align: left; }
-    .message-label { font-size: 14px; color: #d6336c; font-weight: 600; margin-bottom: 6px; display: block; }
+    /* 文字留言 */
+    .message-section { margin: 16px 0; text-align: left; }
+    .message-label {
+      font-size: 13px; color: var(--pink-deep); font-weight: 600;
+      margin-bottom: 8px; display: block; letter-spacing: 0.5px;
+    }
     .message-textarea {
-      width: 100%; height: 80px; border: 2px solid #faa2c1; border-radius: 16px;
-      padding: 10px; font-size: 14px; color: #555; resize: none; outline: none;
-      font-family: inherit; background: rgba(255,255,255,0.8);
+      width: 100%; height: 90px;
+      border: 1.5px solid var(--pink-pale); border-radius: 16px;
+      padding: 12px 14px; font-size: 14px; color: var(--text-dark);
+      resize: none; outline: none;
+      font-family: inherit;
+      background: var(--cream);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      line-height: 1.6;
     }
-    .char-count { font-size: 11px; color: #999; text-align: right; margin-top: 3px; }
+    .message-textarea:focus {
+      border-color: var(--pink-bright);
+      box-shadow: 0 0 0 3px rgba(255,107,157,0.1);
+    }
+    .char-count { font-size: 11px; color: var(--text-light); text-align: right; margin-top: 4px; }
 
-    .voice-section { margin: 15px 0; text-align: left; }
+    /* 录音 */
+    .voice-section { margin: 16px 0; text-align: left; }
     .voice-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .voice-btn {
-      background: #fff; border: 2px solid #faa2c1; color: #d6336c;
-      padding: 12px 20px; border-radius: 50px; font-size: 15px; cursor: pointer;
+      background: var(--cream); border: 1.5px solid var(--pink-light);
+      color: var(--pink-deep); padding: 11px 20px; border-radius: 50px;
+      font-size: 14px; cursor: pointer; font-family: inherit;
+      transition: all 0.2s; font-weight: 500;
     }
-    .voice-btn.recording { background: #ff6b9d; color: white; border-color: #ff6b9d; animation: pulse 1s infinite; }
-    .voice-status { font-size: 12px; color: #e6739f; margin-top: 6px; width: 100%; }
+    .voice-btn:hover { border-color: var(--pink-bright); }
+    .voice-btn.recording {
+      background: linear-gradient(135deg, var(--pink-bright), var(--pink-deep));
+      color: white; border-color: transparent;
+      animation: recPulse 1s infinite;
+    }
+    @keyframes recPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.8; } }
+    .voice-status { font-size: 12px; color: var(--text-light); margin-top: 6px; width: 100%; }
+    .voice-duration { font-size: 13px; color: var(--pink-deep); font-weight: 600; }
     .replay-btn {
-      background: transparent; border: 1px solid #faa2c1; color: #d6336c;
-      padding: 6px 14px; border-radius: 50px; font-size: 13px; cursor: pointer; margin-left: 8px;
+      background: transparent; border: 1.5px solid var(--pink-pale);
+      color: var(--pink-deep); padding: 7px 14px; border-radius: 50px;
+      font-size: 12px; cursor: pointer; font-family: inherit;
     }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
 
-    .music-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    /* 音乐 */
+    .music-row { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
     .select-field {
-      flex: 1; padding: 10px 16px; border: 2px solid #faa2c1; border-radius: 50px;
-      font-size: 14px; color: #d6336c; background: #fff; outline: none;
+      flex: 1; padding: 11px 16px;
+      border: 1.5px solid var(--pink-pale); border-radius: 50px;
+      font-size: 13px; color: var(--text-dark); background: var(--cream);
+      outline: none; font-family: inherit;
     }
     .preview-btn {
-      background: #fff; border: 2px solid #faa2c1; color: #d6336c;
-      padding: 8px 16px; border-radius: 50px; font-size: 13px; font-weight: 600;
-      cursor: pointer; white-space: nowrap;
+      background: var(--cream); border: 1.5px solid var(--pink-light);
+      color: var(--pink-deep); padding: 9px 16px; border-radius: 50px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      white-space: nowrap; font-family: inherit;
+      transition: all 0.2s;
     }
+    .preview-btn:hover { border-color: var(--pink-bright); }
 
+    /* 主按钮 */
     .btn {
-      background: linear-gradient(135deg, #ff6b9d, #c44569); border: none; color: white;
-      padding: 14px 30px; border-radius: 50px; font-size: 16px; font-weight: 600;
-      cursor: pointer; box-shadow: 0 8px 20px rgba(255,107,157,0.4);
-      width: 100%; margin-top: 10px;
+      background: linear-gradient(135deg, var(--pink-bright) 0%, var(--pink-deep) 100%);
+      border: none; color: white;
+      padding: 15px 30px; border-radius: 50px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      box-shadow: 0 8px 24px var(--shadow-pink), 0 2px 6px rgba(0,0,0,0.1);
+      width: 100%; margin-top: 12px;
+      font-family: inherit; letter-spacing: 0.5px;
+      transition: transform 0.15s, box-shadow 0.15s;
+      position: relative; overflow: hidden;
     }
-    .btn:disabled { background: #ccc; box-shadow: none; cursor: not-allowed; }
-    .note { font-size: 11px; color: #999; margin-top: 15px; }
+    .btn::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .btn:active { transform: scale(0.97); box-shadow: 0 4px 12px var(--shadow-pink); }
+    .btn:disabled { background: #ddd; box-shadow: none; cursor: not-allowed; color: #aaa; }
 
+    .note { font-size: 11px; color: var(--text-light); margin-top: 16px; line-height: 1.6; }
+
+    /* 进度条 */
+    .progress-wrap { margin: 14px 0; }
     .progress-bar {
-      width: 100%; height: 6px; background: #ffe0f0; border-radius: 3px;
-      margin: 10px 0; overflow: hidden;
+      width: 100%; height: 5px; background: var(--pink-bg);
+      border-radius: 3px; overflow: hidden;
     }
     .progress-fill {
-      height: 100%; background: linear-gradient(135deg, #ff6b9d, #c44569);
-      border-radius: 3px; width: 0%; transition: width 0.2s;
+      height: 100%;
+      background: linear-gradient(90deg, var(--pink-bright), var(--gold), var(--pink-deep));
+      background-size: 200% 100%;
+      border-radius: 3px; width: 0%;
+      transition: width 0.3s ease;
+      animation: shimmer 1.5s linear infinite;
     }
-    .status-text { font-size: 13px; color: #e6739f; margin: 8px 0; }
+    @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+    .progress-label { font-size: 12px; color: var(--text-light); margin-top: 6px; }
+    .status-text { font-size: 13px; color: var(--text-light); margin: 8px 0; }
 
+    /* 昵称栏 */
     .nickname-bar {
-      background: linear-gradient(135deg, #ffd1dc, #ffe0ec);
-      border-radius: 20px; padding: 10px 20px; margin-bottom: 20px;
-      font-size: 14px; color: #d6336c; font-weight: 600;
+      background: linear-gradient(135deg, rgba(255,209,220,0.5), rgba(255,107,157,0.15));
+      border: 1px solid rgba(255,160,200,0.3);
+      border-radius: 50px; padding: 10px 20px; margin-bottom: 20px;
+      font-size: 13px; color: var(--pink-deep); font-weight: 600;
+      letter-spacing: 0.5px;
     }
+
+    /* 开始卡片 */
     .start-card {
-      background: linear-gradient(145deg, #fff5f8, #ffe0ec); border-radius: 30px;
-      padding: 25px 20px; margin: 20px 0; border: 2px solid #ffb3c6;
+      background: linear-gradient(145deg, #fff8fb, #ffe8f2);
+      border-radius: 28px; padding: 28px 22px; margin: 18px 0;
+      border: 1px solid rgba(255,160,200,0.3);
+      box-shadow: 0 4px 20px rgba(196,69,105,0.08);
     }
-    .start-emoji { font-size: 50px; margin-bottom: 10px; }
-    .start-desc { color: #666; font-size: 14px; margin: 10px 0; line-height: 1.6; }
+    .start-emoji { font-size: 52px; margin-bottom: 12px; display: block; }
+    .start-desc { color: var(--text-mid); font-size: 14px; margin: 10px 0 18px; line-height: 1.8; }
 
-    /* 拆信动画 */
-    .envelope-container { position: relative; width: 280px; height: 200px; margin: 30px auto; cursor: pointer; }
-    .envelope-body { position: absolute; bottom: 0; width: 100%; height: 140px; background: linear-gradient(160deg, #fef5e7 0%, #fdebd0 100%); border-radius: 8px; box-shadow: 0 8px 25px rgba(139,90,43,0.15); }
-    .envelope-flap { position: absolute; top: 0; width: 100%; height: 100px; background: linear-gradient(135deg, #fef0d5, #f5d6a8); clip-path: polygon(50% 100%, 0 0, 100% 0); transform-origin: top center; transition: transform 0.6s ease; z-index: 2; }
+    /* 信封动画 */
+    .envelope-wrapper { text-align: center; margin: 20px 0; }
+    .envelope-container {
+      position: relative; width: 260px; height: 180px;
+      margin: 0 auto 12px; cursor: pointer;
+      filter: drop-shadow(0 12px 30px rgba(196,69,105,0.2));
+      transition: transform 0.2s;
+    }
+    .envelope-container:hover { transform: translateY(-3px); }
+    .envelope-body {
+      position: absolute; bottom: 0; width: 100%; height: 130px;
+      background: linear-gradient(160deg, #fff8f0 0%, #fdebd0 100%);
+      border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(139,90,43,0.12);
+    }
+    .envelope-flap {
+      position: absolute; top: 0; width: 100%; height: 92px;
+      background: linear-gradient(145deg, #fef3e0, #f5d6a8);
+      clip-path: polygon(50% 100%, 0 0, 100% 0);
+      transform-origin: top center;
+      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 2;
+    }
     .envelope-flap.open { transform: rotateX(180deg); }
-    .envelope-seal { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; background: linear-gradient(135deg, #e8a0b4, #d6336c); border-radius: 50%; z-index: 3; box-shadow: 0 4px 12px rgba(214,51,108,0.3); display: flex; justify-content: center; align-items: center; font-size: 18px; color: white; transition: opacity 0.5s ease; }
-    .envelope-seal.hidden { opacity: 0; pointer-events: none; }
-    .letter-paper { position: absolute; top: 20px; left: 10%; width: 80%; height: 0; background: #fffef9; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); overflow: hidden; transition: height 0.8s ease 0.3s; z-index: 1; padding: 0 15px; }
-    .letter-paper.show { height: 160px; }
-    .letter-text { font-family: 'Georgia', 'Noto Serif SC', serif; font-size: 14px; color: #4a3728; line-height: 1.8; padding-top: 20px; opacity: 0; transition: opacity 0.5s ease 0.6s; }
+    .envelope-seal {
+      position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
+      width: 42px; height: 42px;
+      background: linear-gradient(135deg, var(--pink-light), var(--pink-deep));
+      border-radius: 50%; z-index: 3;
+      box-shadow: 0 4px 14px rgba(196,69,105,0.35);
+      display: flex; justify-content: center; align-items: center;
+      font-size: 18px; color: white;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    .envelope-seal.hidden { opacity: 0; transform: translateX(-50%) scale(0.5); }
+    .letter-paper {
+      position: absolute; top: 15px; left: 8%; width: 84%; height: 0;
+      background: #fffef9; border-radius: 4px;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+      overflow: hidden;
+      transition: height 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.3s;
+      z-index: 1; padding: 0 16px;
+    }
+    .letter-paper.show { height: 150px; }
+    .letter-text {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 13px; color: #4a3728; line-height: 1.9;
+      padding-top: 18px;
+      opacity: 0; transition: opacity 0.5s ease 0.8s;
+    }
     .letter-paper.show .letter-text { opacity: 1; }
+    .envelope-hint { font-size: 12px; color: var(--text-light); margin-top: 8px; }
 
+    /* 幻灯片 */
     .slideshow-viewer {
-      width: 100%; height: 320px; border-radius: 24px; background: #1a1a1a;
-      overflow: hidden; position: relative; margin: 15px 0;
-      box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+      width: 100%; height: 300px; border-radius: 20px;
+      background: #0d0608; overflow: hidden; position: relative;
+      margin: 16px 0;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 0 60px rgba(0,0,0,0.5);
       display: flex; justify-content: center; align-items: center;
     }
     .slideshow-viewer img {
-      position: absolute; width: 90%; height: auto; max-height: 280px;
-      object-fit: contain; border-radius: 12px;
-      border: 2px solid #ffd1dc; background: #fff;
-      transition: opacity 1.2s ease-in-out;
+      position: absolute; width: 88%; height: auto; max-height: 270px;
+      object-fit: contain; border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.05);
       opacity: 0;
+      transition: opacity 1.4s ease-in-out;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
     .slideshow-viewer img.active { opacity: 1; }
-
-    .quiz-input {
-      width: 80%; padding: 12px 20px; border: 2px solid #faa2c1; border-radius: 50px;
-      font-size: 16px; text-align: center; color: #d6336c; background: #fff;
-      outline: none; margin: 10px auto; display: block;
+    .slide-counter {
+      position: absolute; bottom: 10px; right: 14px;
+      font-size: 11px; color: rgba(255,255,255,0.5);
+      letter-spacing: 1px; z-index: 2;
     }
+    .slide-phrase {
+      position: absolute; bottom: 10px; left: 14px;
+      font-size: 11px; color: rgba(255,200,200,0.7);
+      font-family: 'Noto Serif SC', serif;
+      letter-spacing: 0.5px; z-index: 2;
+      max-width: 70%;
+      text-align: left;
+    }
+
+    /* 问答 */
+    .quiz-input {
+      width: 82%; padding: 13px 20px;
+      border: 1.5px solid var(--pink-pale); border-radius: 50px;
+      font-size: 15px; text-align: center; color: var(--text-dark);
+      background: var(--cream); outline: none;
+      margin: 12px auto; display: block; font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .quiz-input:focus { border-color: var(--pink-bright); box-shadow: 0 0 0 3px rgba(255,107,157,0.1); }
     .quiz-error { color: #e03131; font-size: 13px; margin-top: 5px; display: none; }
 
+    /* 原谅券 */
     .coupon-card {
-      background: linear-gradient(145deg, #fff5f8, #ffe0ec); border-radius: 30px;
-      padding: 25px 20px; margin: 15px 0; border: 2px solid #ffb3c6;
-      box-shadow: 0 15px 30px rgba(255,105,135,0.2);
+      background: linear-gradient(145deg, #fff5f8, #ffe0ec);
+      border-radius: 28px; padding: 28px 22px; margin: 16px 0;
+      border: 1px solid rgba(255,160,200,0.4);
+      box-shadow: 0 12px 40px rgba(255,105,135,0.15);
+      position: relative; overflow: hidden;
     }
-    .coupon-title { font-size: 22px; color: #d6336c; font-weight: 700; margin-bottom: 8px; }
-    .coupon-desc { font-size: 14px; color: #555; margin-bottom: 20px; }
+    .coupon-card::before {
+      content: '';
+      position: absolute; top: -30px; right: -30px;
+      width: 100px; height: 100px;
+      background: radial-gradient(circle, rgba(255,107,157,0.15), transparent 70%);
+      border-radius: 50%;
+    }
+    .coupon-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 20px; color: var(--pink-deep); font-weight: 700; margin-bottom: 10px;
+      letter-spacing: 2px;
+    }
+    .coupon-desc { font-size: 14px; color: var(--text-mid); margin-bottom: 22px; line-height: 1.8; }
     .forgive-btn {
-      background: #ff4d6d; font-size: 18px; padding: 15px 35px; border: none; color: white;
-      border-radius: 50px; font-weight: 600; letter-spacing: 1px; cursor: pointer;
-      box-shadow: 0 8px 20px rgba(255,77,109,0.4); animation: pulse 1.8s infinite;
-      width: 80%; margin: 0 auto;
+      background: linear-gradient(135deg, #ff4d6d, var(--pink-deep));
+      font-size: 17px; padding: 16px 36px;
+      border: none; color: white; border-radius: 50px;
+      font-weight: 700; letter-spacing: 2px; cursor: pointer;
+      box-shadow: 0 8px 24px rgba(255,77,109,0.4);
+      animation: forgivePulse 2s ease-in-out infinite;
+      width: 82%; display: block; margin: 0 auto;
+      font-family: inherit;
+      position: relative; overflow: hidden;
     }
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(255,77,109,0.5); }
-      70% { box-shadow: 0 0 0 15px rgba(255,77,109,0); }
-      100% { box-shadow: 0 0 0 0 rgba(255,77,109,0); }
+    .forgive-btn::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 60%);
     }
-    .forgiven-msg { font-size: 18px; color: #d6336c; font-weight: 700; margin-top: 20px; }
+    @keyframes forgivePulse {
+      0% { box-shadow: 0 0 0 0 rgba(255,77,109,0.5), 0 8px 24px rgba(255,77,109,0.3); }
+      70% { box-shadow: 0 0 0 16px rgba(255,77,109,0), 0 8px 24px rgba(255,77,109,0.3); }
+      100% { box-shadow: 0 0 0 0 rgba(255,77,109,0), 0 8px 24px rgba(255,77,109,0.3); }
+    }
+    .forgiven-msg {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 20px; color: var(--pink-deep); font-weight: 700; margin-top: 20px;
+      line-height: 1.6; letter-spacing: 1px;
+    }
     .memorial-btn {
-      background: linear-gradient(135deg, #ffb3c6, #faa2c1); border: none; color: white;
-      padding: 14px 30px; border-radius: 50px; font-size: 16px; font-weight: 600;
-      cursor: pointer; box-shadow: 0 8px 20px rgba(255,107,157,0.2);
+      background: linear-gradient(135deg, var(--pink-pale), var(--pink-light));
+      border: none; color: var(--pink-deep);
+      padding: 14px 30px; border-radius: 50px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      box-shadow: 0 6px 18px rgba(255,107,157,0.15);
       width: 80%; margin: 20px auto 0; display: block;
+      font-family: inherit; transition: transform 0.2s;
     }
-    .error-text { color: #999; font-size: 14px; margin: 20px 0; }
+    .memorial-btn:active { transform: scale(0.97); }
 
-    /* 粉色语音播放按钮 */
+    .error-text { color: var(--text-light); font-size: 14px; margin: 20px 0; }
+
+    /* 语音播放器 */
     .voice-player-wrapper {
-      display: flex; align-items: center; gap: 12px; justify-content: center;
-      background: rgba(255,218,224,0.4); border-radius: 50px;
-      padding: 15px 25px; margin: 20px auto; max-width: 260px;
+      display: flex; align-items: center; gap: 14px; justify-content: center;
+      background: linear-gradient(135deg, rgba(255,209,220,0.3), rgba(255,107,157,0.1));
+      border: 1px solid rgba(255,160,200,0.3);
+      border-radius: 60px; padding: 16px 28px;
+      margin: 22px auto; max-width: 270px;
     }
     .voice-play-btn {
-      width: 50px; height: 50px; border-radius: 50%;
-      background: linear-gradient(135deg, #ff6b9d, #d6336c);
-      border: none; cursor: pointer; display: flex; align-items: center;
-      justify-content: center; box-shadow: 0 6px 15px rgba(255,107,157,0.3);
-      transition: transform 0.2s; flex-shrink: 0;
+      width: 52px; height: 52px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--pink-bright), var(--pink-deep));
+      border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 18px var(--shadow-pink);
+      transition: transform 0.15s, box-shadow 0.15s;
+      flex-shrink: 0;
     }
     .voice-play-btn:active { transform: scale(0.92); }
-    .voice-play-btn.playing { animation: pulse 1.2s infinite; }
+    .voice-play-btn.playing { animation: recPulse 1.2s infinite; }
     .voice-play-icon {
-      width: 0; height: 0; border-left: 14px solid white;
-      border-top: 9px solid transparent; border-bottom: 9px solid transparent;
+      width: 0; height: 0;
+      border-left: 15px solid white;
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
       margin-left: 3px;
     }
     .voice-play-btn.playing .voice-play-icon {
-      width: 12px; height: 12px; border: none;
-      background: white; border-radius: 2px;
+      width: 13px; height: 13px; border: none;
+      background: white; border-radius: 2px; margin-left: 0;
     }
-    .voice-wave {
-      display: flex; gap: 3px; align-items: flex-end; height: 30px;
-    }
+    .voice-wave { display: flex; gap: 3px; align-items: flex-end; height: 30px; }
     .voice-wave span {
-      width: 3px; background: #faa2c1; border-radius: 2px;
-      animation: wave 1.2s infinite ease-in-out;
+      width: 3px; background: var(--pink-light); border-radius: 2px;
+      animation: waveAnim 1.3s ease-in-out infinite;
     }
-    .voice-wave span:nth-child(1) { height: 15px; animation-delay: 0s; }
+    .voice-wave span:nth-child(1) { height: 14px; animation-delay: 0s; }
     .voice-wave span:nth-child(2) { height: 24px; animation-delay: 0.2s; }
     .voice-wave span:nth-child(3) { height: 18px; animation-delay: 0.4s; }
     .voice-wave span:nth-child(4) { height: 26px; animation-delay: 0.6s; }
-    @keyframes wave {
+    @keyframes waveAnim {
       0%,100% { transform: scaleY(1); }
-      50% { transform: scaleY(0.5); }
+      50% { transform: scaleY(0.45); }
     }
+    .voice-time { font-size: 12px; color: var(--text-light); letter-spacing: 1px; }
+
+    /* 烟花效果 */
+    .firework-canvas {
+      position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    }
+
+    /* 进入动画 */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeInUp 0.5s ease forwards; }
+    .fade-in-delay { animation: fadeInUp 0.5s ease 0.15s forwards; opacity: 0; }
+    .fade-in-delay2 { animation: fadeInUp 0.5s ease 0.3s forwards; opacity: 0; }
+
+    /* 胶囊入场动画 */
+    @keyframes capsuleDrop {
+      0% { transform: translateY(-60px) rotate(-8deg); opacity: 0; }
+      60% { transform: translateY(8px) rotate(2deg); opacity: 1; }
+      80% { transform: translateY(-4px) rotate(-1deg); }
+      100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    }
+    .capsule-drop { animation: capsuleDrop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+    /* 主题皮肤 */
+    .theme-selector { display: flex; gap: 8px; margin-bottom: 14px; justify-content: center; }
+    .theme-dot {
+      width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+      border: 3px solid transparent; transition: transform 0.2s, border-color 0.2s;
+    }
+    .theme-dot:hover { transform: scale(1.15); }
+    .theme-dot.active { border-color: var(--text-dark); transform: scale(1.1); }
+    .theme-dot.pink { background: linear-gradient(135deg, #ff6b9d, #c44569); }
+    .theme-dot.blue { background: linear-gradient(135deg, #4fc3f7, #1565c0); }
+    .theme-dot.dark { background: linear-gradient(135deg, #4a4a6a, #1a1a2e); }
+    .theme-dot.gold { background: linear-gradient(135deg, #f6c90e, #b8860b); }
+
+    /* 蓝色主题 */
+    body.theme-blue .container { background: linear-gradient(160deg, rgba(240,248,255,0.97), rgba(220,240,255,0.97)); }
+    body.theme-blue { background: #050d1a; }
+    body.theme-blue h1, body.theme-blue .message-label,
+    body.theme-blue .nickname-bar, body.theme-blue .upload-text { color: #1565c0; }
+    body.theme-blue .btn, body.theme-blue .forgive-btn { background: linear-gradient(135deg, #4fc3f7, #1565c0); }
+    body.theme-blue .password-input:focus, body.theme-blue .input-field:focus,
+    body.theme-blue .message-textarea:focus { border-color: #4fc3f7; box-shadow: 0 0 0 3px rgba(79,195,247,0.15); }
+
+    /* 深色主题 */
+    body.theme-dark .container { background: linear-gradient(160deg, rgba(28,20,36,0.97), rgba(20,15,30,0.97)); }
+    body.theme-dark h1 { color: #e0b0ff; }
+    body.theme-dark .message-label, body.theme-dark .upload-text { color: #c084fc; }
+    body.theme-dark .sub-title, body.theme-dark .note { color: #9060c0; }
+    body.theme-dark .input-field, body.theme-dark .password-input,
+    body.theme-dark .message-textarea, body.theme-dark .select-field {
+      background: rgba(255,255,255,0.06); color: #e0d0f0;
+      border-color: rgba(192,132,252,0.3);
+    }
+    body.theme-dark .btn { background: linear-gradient(135deg, #a855f7, #6d28d9); }
+    body.theme-dark .start-card, body.theme-dark .coupon-card { background: rgba(255,255,255,0.04); border-color: rgba(192,132,252,0.2); }
+    body.theme-dark .start-desc, body.theme-dark .coupon-desc { color: #b090d0; }
+    body.theme-dark .nickname-bar { background: rgba(168,85,247,0.1); border-color: rgba(168,85,247,0.2); color: #c084fc; }
+
+    /* 金色主题 */
+    body.theme-gold .container { background: linear-gradient(160deg, rgba(255,252,240,0.97), rgba(255,248,220,0.97)); }
+    body.theme-gold { background: #1a1400; }
+    body.theme-gold h1, body.theme-gold .message-label { color: #92600a; }
+    body.theme-gold .btn { background: linear-gradient(135deg, #f6c90e, #b8860b); color: #3a2000; }
+    body.theme-gold .forgive-btn { background: linear-gradient(135deg, #f6c90e, #b8860b); color: #3a2000; }
   </style>
 </head>
 <body>
+  <div class="bg-particles" id="bgParticles"></div>
+  <canvas class="firework-canvas" id="fireworkCanvas"></canvas>
   <div class="container" id="mainContainer"></div>
 
   <script>
-    // ========== 🔑 当前有效密码（改这里即可） ==========
+    // ===== 配置 =====
     const CURRENT_PASSWORD = 'hehao2024';
-    // ==================================================
-
-    const firebaseConfig = {
-      databaseURL: "https://sorry-capsule-default-rtdb.firebaseio.com"
-    };
+    const firebaseConfig = { databaseURL: "https://sorry-capsule-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
+    // ===== 背景粒子 =====
+    (function initParticles() {
+      const container = document.getElementById('bgParticles');
+      const colors = ['#ff6b9d','#ffd1dc','#c44569','#ffb3c6','#ffffff'];
+      for (let i = 0; i < 20; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const size = Math.random() * 6 + 2;
+        p.style.cssText = `
+          width:${size}px; height:${size}px;
+          left:${Math.random()*100}%;
+          background:${colors[Math.floor(Math.random()*colors.length)]};
+          animation-duration:${Math.random()*15+10}s;
+          animation-delay:${Math.random()*10}s;
+        `;
+        container.appendChild(p);
+      }
+    })();
 
-    if (token) {
-      initReceiver(token);
-    } else {
-      initPasswordGate();
+    // ===== 主题切换 =====
+    let currentTheme = 'pink';
+    function applyTheme(theme) {
+      document.body.className = theme === 'pink' ? '' : 'theme-' + theme;
+      currentTheme = theme;
+      // 更新粒子颜色
+      const themeColors = {
+        pink: ['#ff6b9d','#ffd1dc','#c44569'],
+        blue: ['#4fc3f7','#b3e5fc','#1565c0'],
+        dark: ['#a855f7','#e0b0ff','#6d28d9'],
+        gold: ['#f6c90e','#ffd700','#b8860b']
+      };
     }
 
-    // ========== 密码验证门 ==========
-    function initPasswordGate() {
-      const container = document.getElementById('mainContainer');
-      container.innerHTML = `
-        <h1>🔐 验证你的胶囊</h1>
-        <p class="sub-title">请输入购买后获得的专属密码</p>
-        <input type="password" class="password-input" id="passwordInput" placeholder="请输入密码">
-        <p class="error-msg" id="errorMsg">❌ 密码错误</p>
-        <button class="btn" id="verifyBtn">🔓 验证进入</button>
-        <p class="note">💡 密码由卖家提供，请勿外传</p>
-      `;
-      document.getElementById('verifyBtn').addEventListener('click', () => {
-        const inputPwd = document.getElementById('passwordInput').value.trim();
-        if (inputPwd === CURRENT_PASSWORD) {
-          initSender();
-        } else {
-          document.getElementById('errorMsg').style.display = 'block';
-          document.getElementById('passwordInput').value = '';
+    // ===== 烟花效果 =====
+    function launchFireworks() {
+      const canvas = document.getElementById('fireworkCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      const particles = [];
+      const colors = ['#ff6b9d','#ffd1dc','#ffb3c6','#ff4081','#fff','#ffd700'];
+      for (let burst = 0; burst < 6; burst++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height * 0.6;
+        for (let i = 0; i < 60; i++) {
+          const angle = (Math.PI * 2 / 60) * i;
+          const speed = Math.random() * 5 + 2;
+          particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            alpha: 1,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            size: Math.random() * 3 + 1,
+            delay: burst * 200
+          });
         }
-      });
-      document.getElementById('passwordInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') document.getElementById('verifyBtn').click();
-      });
+      }
+      let startTime = null;
+      function animate(ts) {
+        if (!startTime) startTime = ts;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let alive = false;
+        for (const p of particles) {
+          if (ts - startTime < p.delay) { alive = true; continue; }
+          p.x += p.vx; p.y += p.vy;
+          p.vy += 0.08;
+          p.alpha -= 0.015;
+          if (p.alpha > 0) {
+            alive = true;
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+        if (alive) requestAnimationFrame(animate);
+        else ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      requestAnimationFrame(animate);
     }
 
-    // ========== 图片压缩 ==========
+    // ===== 工具函数 =====
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"']/g, m =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' })[m]);
+    }
+
     function compressImage(file, maxWidth = 600, quality = 0.6) {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -279,11 +659,10 @@
           const img = new Image();
           img.onload = () => {
             const canvas = document.createElement('canvas');
-            let width = img.width, height = img.height;
-            if (width > maxWidth) { height = (height * maxWidth) / width; width = maxWidth; }
-            canvas.width = width; canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
+            let w = img.width, h = img.height;
+            if (w > maxWidth) { h = (h * maxWidth) / w; w = maxWidth; }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
             resolve(canvas.toDataURL('image/jpeg', quality));
           };
           img.src = e.target.result;
@@ -292,19 +671,74 @@
       });
     }
 
-    // ========== 发起方制作页面 ==========
+    function buildThemeSelector() {
+      return `
+        <div class="theme-selector" id="themeSelector">
+          <div class="theme-dot pink active" data-theme="pink" title="粉色"></div>
+          <div class="theme-dot blue" data-theme="blue" title="蓝色"></div>
+          <div class="theme-dot dark" data-theme="dark" title="深色"></div>
+          <div class="theme-dot gold" data-theme="gold" title="金色"></div>
+        </div>
+      `;
+    }
+
+    function bindThemeSelector() {
+      document.querySelectorAll('.theme-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
+          dot.classList.add('active');
+          applyTheme(dot.dataset.theme);
+        });
+      });
+    }
+
+    // ===== 路由 =====
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) { initReceiver(token); }
+    else { initPasswordGate(); }
+
+    // ===== 密码门 =====
+    function initPasswordGate() {
+      const container = document.getElementById('mainContainer');
+      container.innerHTML = `
+        <div class="lock-icon capsule-drop">🔐</div>
+        <h1 class="fade-in">验证你的胶囊</h1>
+        <p class="sub-title fade-in-delay">请输入购买后获得的专属密码</p>
+        <input type="password" class="password-input fade-in-delay" id="passwordInput" placeholder="请输入密码">
+        <p class="error-msg" id="errorMsg">❌ 密码错误，请重试</p>
+        <button class="btn fade-in-delay2" id="verifyBtn">🔓 验证进入</button>
+        <p class="note fade-in-delay2">💡 密码由卖家提供，每个密码仅限使用一次</p>
+      `;
+      document.getElementById('verifyBtn').addEventListener('click', () => {
+        const v = document.getElementById('passwordInput').value.trim();
+        if (v === CURRENT_PASSWORD) { initSender(); }
+        else {
+          document.getElementById('errorMsg').style.display = 'block';
+          document.getElementById('passwordInput').value = '';
+        }
+      });
+      document.getElementById('passwordInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('verifyBtn').click();
+      });
+    }
+
+    // ===== 发起方制作页 =====
     function initSender() {
       const container = document.getElementById('mainContainer');
       container.innerHTML = `
+        ${buildThemeSelector()}
         <h1>📸 制作和好胶囊</h1>
         <p class="sub-title">定制一份专属于TA的回忆</p>
-        <input type="text" class="input-field" id="nicknameInput" placeholder="💝 输入TA的昵称（必填，会显示在胶囊顶部）" maxlength="20">
+
+        <input type="text" class="input-field" id="nicknameInput" placeholder="💝 输入TA的昵称（必填）" maxlength="20">
+
         <div class="upload-area" id="uploadTrigger">
-          <div class="upload-icon">🖼️</div>
-          <div class="upload-text">点击选择照片 (2-100张)</div>
+          <span class="upload-icon">🖼️</span>
+          <div class="upload-text">点击选择照片（2～100张）</div>
           <div class="upload-count" id="uploadCount">已选 0 张</div>
         </div>
-        <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+        <input type="file" id="fileInput" multiple accept="image/*" style="display:none;">
         <div class="preview-grid" id="previewGrid"></div>
 
         <div class="message-section">
@@ -317,6 +751,7 @@
           <label class="message-label">🎙️ 语音留言（选填，最长60秒）</label>
           <div class="voice-row">
             <button class="voice-btn" id="voiceBtn">🎤 按住录音</button>
+            <span class="voice-duration" id="voiceDuration"></span>
             <span id="voiceActions" style="display:none;"></span>
           </div>
           <div class="voice-status" id="voiceStatus"></div>
@@ -332,15 +767,19 @@
           <button class="preview-btn" id="previewMusicBtn">▶ 试听</button>
         </div>
 
-        <label class="message-label">❓ 设置一个只有TA知道答案的问题（选填）</label>
+        <label class="message-label">❓ 设置专属问题（选填）</label>
         <input type="text" class="input-field" id="questionInput" placeholder="比如：我们第一次约会是在哪里？" maxlength="100">
-        <input type="text" class="input-field" id="answerInput" placeholder="答案（对方需输入正确才能看到原谅按钮）" maxlength="50">
+        <input type="text" class="input-field" id="answerInput" placeholder="答案（对方需答对才能看到原谅按钮）" maxlength="50">
 
         <button class="btn" id="generateBtn" disabled>🔗 生成专属链接</button>
-        <div class="progress-bar" id="progressBar" style="display:none;"><div class="progress-fill" id="progressFill"></div></div>
-        <div class="status-text" id="statusText"></div>
-        <p class="note">💡 昵称和照片为必填项，照片最多100张，生成链接可能需要几秒</p>
+        <div class="progress-wrap" id="progressWrap" style="display:none;">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="progress-label" id="progressLabel"></div>
+        </div>
+        <p class="note">💡 昵称和照片为必填，照片最多100张</p>
       `;
+
+      bindThemeSelector();
 
       const fileInput = document.getElementById('fileInput');
       const uploadTrigger = document.getElementById('uploadTrigger');
@@ -354,48 +793,59 @@
       const questionInput = document.getElementById('questionInput');
       const answerInput = document.getElementById('answerInput');
       const previewMusicBtn = document.getElementById('previewMusicBtn');
-      const progressBar = document.getElementById('progressBar');
+      const progressWrap = document.getElementById('progressWrap');
       const progressFill = document.getElementById('progressFill');
-      const statusText = document.getElementById('statusText');
+      const progressLabel = document.getElementById('progressLabel');
       const voiceBtn = document.getElementById('voiceBtn');
       const voiceStatus = document.getElementById('voiceStatus');
       const voiceActions = document.getElementById('voiceActions');
+      const voiceDuration = document.getElementById('voiceDuration');
 
-      let selectedFiles = [], audioCtx = null, previewInterval = null;
+      let selectedFiles = [];
       let voiceBase64 = null;
       let mediaRecorder = null;
       let audioChunks = [];
+      let audioCtx = null;
+      let previewInterval = null;
+      let recTimerInterval = null;
+      let recSeconds = 0;
 
       function checkGenerateBtn() {
-        const nicknameFilled = nicknameInput.value.trim().length > 0;
-        const photosValid = selectedFiles.length >= 2;
-        generateBtn.disabled = !(nicknameFilled && photosValid);
+        generateBtn.disabled = !(nicknameInput.value.trim() && selectedFiles.length >= 2);
       }
 
       nicknameInput.addEventListener('input', checkGenerateBtn);
       messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
 
-      // 录音
-      voiceBtn.addEventListener('touchstart', startRec); voiceBtn.addEventListener('mousedown', startRec);
-      voiceBtn.addEventListener('touchend', stopRec); voiceBtn.addEventListener('mouseup', stopRec);
-      voiceBtn.addEventListener('touchcancel', stopRec); voiceBtn.addEventListener('mouseleave', stopRec);
+      // 录音（含计时）
+      voiceBtn.addEventListener('touchstart', startRec, { passive: false });
+      voiceBtn.addEventListener('mousedown', startRec);
+      voiceBtn.addEventListener('touchend', stopRec);
+      voiceBtn.addEventListener('mouseup', stopRec);
+      voiceBtn.addEventListener('touchcancel', stopRec);
+      voiceBtn.addEventListener('mouseleave', stopRec);
 
       function startRec(e) {
         e.preventDefault();
-        if (!navigator.mediaDevices?.getUserMedia) { alert('浏览器不支持录音，请用文字留言'); return; }
+        if (!navigator.mediaDevices?.getUserMedia) { alert('浏览器不支持录音，请改用文字留言'); return; }
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-          mediaRecorder = new MediaRecorder(stream); audioChunks = [];
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+          recSeconds = 0;
           mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
           mediaRecorder.onstop = () => {
             const blob = new Blob(audioChunks, { type: 'audio/webm' });
             const reader = new FileReader();
             reader.onload = () => {
               voiceBase64 = reader.result;
-              voiceStatus.textContent = '✅ 已录制，可回放或重录';
-              voiceActions.innerHTML = '<button class="replay-btn" id="replayVoiceBtn">🔊 回放</button> <button class="replay-btn" id="rerecordBtn">🔄 重录</button>';
+              const durText = recSeconds + '秒';
+              voiceStatus.textContent = `✅ 已录制 ${durText}，可回放或重录`;
+              voiceActions.innerHTML = `<button class="replay-btn" id="replayVoiceBtn">🔊 回放</button> <button class="replay-btn" id="rerecordBtn">🔄 重录</button>`;
               document.getElementById('replayVoiceBtn').addEventListener('click', () => { new Audio(voiceBase64).play(); });
               document.getElementById('rerecordBtn').addEventListener('click', () => {
-                voiceBase64 = null; voiceActions.innerHTML = ''; voiceStatus.textContent = ''; voiceBtn.style.display = 'inline-block';
+                voiceBase64 = null; voiceActions.innerHTML = '';
+                voiceStatus.textContent = ''; voiceDuration.textContent = '';
+                voiceBtn.style.display = 'inline-block'; voiceActions.style.display = 'none';
               });
               voiceBtn.style.display = 'none';
               voiceActions.style.display = 'inline';
@@ -403,89 +853,125 @@
             reader.readAsDataURL(blob);
           };
           mediaRecorder.start();
-          voiceBtn.classList.add('recording'); voiceBtn.textContent = '🎤 松开结束录音'; voiceStatus.textContent = '🔴 正在录音...';
-          setTimeout(() => { if (mediaRecorder?.state === 'recording') stopRec(); }, 60000);
-        }).catch(() => alert('无法访问麦克风，请用文字留言'));
-      }
-      function stopRec() {
-        if (mediaRecorder?.state === 'recording') { mediaRecorder.stop(); mediaRecorder.stream.getTracks().forEach(t => t.stop()); }
-        voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤 按住录音';
-        if (!voiceBase64) voiceStatus.textContent = '';
+          voiceBtn.classList.add('recording');
+          voiceBtn.textContent = '🎤 松开结束';
+          voiceStatus.textContent = '🔴 录音中...';
+          recTimerInterval = setInterval(() => {
+            recSeconds++;
+            voiceDuration.textContent = recSeconds + 's';
+            if (recSeconds >= 60) stopRec();
+          }, 1000);
+        }).catch(() => alert('无法访问麦克风，请检查权限或改用文字留言'));
       }
 
+      function stopRec() {
+        clearInterval(recTimerInterval);
+        if (mediaRecorder?.state === 'recording') {
+          mediaRecorder.stop();
+          mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+        voiceBtn.classList.remove('recording');
+        voiceBtn.textContent = '🎤 按住录音';
+        if (!voiceBase64) { voiceStatus.textContent = ''; voiceDuration.textContent = ''; }
+      }
+
+      // 照片上传（支持单张删除）
       uploadTrigger.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', (e) => {
         const files = Array.from(e.target.files);
         if (!files.length) return;
-        selectedFiles = files.slice(0, 100);
+        selectedFiles = [...selectedFiles, ...files].slice(0, 100);
+        renderPreview();
+        checkGenerateBtn();
+      });
+
+      function renderPreview() {
         uploadCount.textContent = '已选 ' + selectedFiles.length + ' 张';
         previewGrid.innerHTML = '';
-        const previewCount = Math.min(selectedFiles.length, 20);
-        for (let i = 0; i < previewCount; i++) {
+        const count = Math.min(selectedFiles.length, 20);
+        for (let i = 0; i < count; i++) {
           const reader = new FileReader();
+          const idx = i;
           reader.onload = (ev) => {
-            const img = document.createElement('img');
-            img.src = ev.target.result;
-            img.className = 'preview-thumb';
-            previewGrid.appendChild(img);
+            const item = document.createElement('div');
+            item.className = 'preview-item';
+            item.innerHTML = `<img src="${ev.target.result}" class="preview-thumb"><button class="preview-delete" data-idx="${idx}">✕</button>`;
+            item.querySelector('.preview-delete').addEventListener('click', () => {
+              selectedFiles.splice(idx, 1);
+              renderPreview(); checkGenerateBtn();
+            });
+            previewGrid.appendChild(item);
           };
           reader.readAsDataURL(selectedFiles[i]);
         }
         if (selectedFiles.length > 20) {
           const more = document.createElement('div');
-          more.style.cssText = 'grid-column: span 2; font-size: 12px; color: #e6739f; text-align: center;';
-          more.textContent = '...还有 ' + (selectedFiles.length - 20) + ' 张';
+          more.style.cssText = 'grid-column:span 2; font-size:12px; color:var(--text-light); text-align:center; padding:8px;';
+          more.textContent = '···还有 ' + (selectedFiles.length - 20) + ' 张';
           previewGrid.appendChild(more);
         }
-        checkGenerateBtn();
-      });
+      }
 
       // 音乐试听
-      function stopPreview() { if (previewInterval) { clearInterval(previewInterval); previewInterval = null; } if (audioCtx) { audioCtx.close(); audioCtx = null; } previewMusicBtn.textContent = '▶ 试听'; }
+      function stopPreview() {
+        if (previewInterval) { clearInterval(previewInterval); previewInterval = null; }
+        if (audioCtx) { audioCtx.close(); audioCtx = null; }
+        previewMusicBtn.textContent = '▶ 试听';
+      }
       previewMusicBtn.addEventListener('click', () => {
         if (previewInterval) { stopPreview(); return; }
-        const selectedMusic = musicSelect.value;
-        if (selectedMusic === 'none') { alert('请先选择一首音乐'); return; }
+        const sel = musicSelect.value;
+        if (sel === 'none') { alert('请先选择一首音乐'); return; }
         try {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const notes = { melody1: [523,659,784,1047,784,659,523,440], melody2: [392,440,523,659,523,440,392,330] }[selectedMusic] || [];
-          let noteIndex = 0;
+          const notes = {
+            melody1: [523,659,784,1047,784,659,523,440],
+            melody2: [392,440,523,659,523,440,392,330]
+          }[sel] || [];
+          let ni = 0;
           function playNote() {
             if (!audioCtx) return;
-            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-            osc.type = 'sine'; osc.frequency.value = notes[noteIndex % notes.length];
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 1.2);
-            noteIndex++;
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = 'sine'; o.frequency.value = notes[ni % notes.length];
+            g.gain.setValueAtTime(0.18, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.3);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 1.3);
+            ni++;
           }
           playNote();
           previewMusicBtn.textContent = '⏹ 停止';
-          previewInterval = setInterval(playNote, 1800);
-          setTimeout(() => { if (previewInterval) stopPreview(); }, 5000);
+          previewInterval = setInterval(playNote, 1900);
+          setTimeout(() => { if (previewInterval) stopPreview(); }, 6000);
         } catch(e) { alert('试听失败，但音乐仍会包含在胶囊中'); stopPreview(); }
       });
 
+      // 生成链接
       generateBtn.addEventListener('click', async () => {
         if (selectedFiles.length < 2 || !nicknameInput.value.trim()) return;
-        generateBtn.style.display = 'none';
-        progressBar.style.display = 'block';
-        statusText.textContent = '正在压缩图片...';
+        generateBtn.disabled = true;
+        generateBtn.textContent = '⏳ 生成中...';
+        progressWrap.style.display = 'block';
 
-        const imagesBase64 = [];
         const total = selectedFiles.length;
-        const batchSize = 10;
+        const imagesBase64 = [];
+        const batchSize = 8;
+        const estimatedTime = Math.ceil(total / batchSize) * 2;
+        progressLabel.textContent = `预计需要约 ${estimatedTime} 秒`;
+
         for (let i = 0; i < total; i += batchSize) {
           const batch = selectedFiles.slice(i, i + batchSize);
-          const batchResults = await Promise.all(batch.map(file => compressImage(file, 600, 0.6)));
-          imagesBase64.push(...batchResults);
-          const progress = Math.round(((i + batch.length) / total) * 100);
-          progressFill.style.width = progress + '%';
-          statusText.textContent = `已压缩 ${Math.min(i + batch.length, total)}/${total} 张...`;
+          const results = await Promise.all(batch.map(f => compressImage(f)));
+          imagesBase64.push(...results);
+          const pct = Math.round(((i + batch.length) / total) * 90);
+          progressFill.style.width = pct + '%';
+          progressLabel.textContent = `已处理 ${Math.min(i + batch.length, total)}/${total} 张，请稍候...`;
         }
 
-        statusText.textContent = '正在上传到云端...';
+        progressLabel.textContent = '正在上传到云端...';
+        progressFill.style.width = '95%';
+
         const capsuleData = {
           nickname: nicknameInput.value.trim(),
           message: messageInput.value.trim() || '',
@@ -499,307 +985,378 @@
 
         const newRef = db.ref('capsules').push();
         await newRef.set(capsuleData);
-        const token = newRef.key;
-        const link = window.location.href.split('?')[0] + '?token=' + token;
+        const newToken = newRef.key;
+        const link = window.location.href.split('?')[0] + '?token=' + newToken;
 
-        let createdTokens = JSON.parse(localStorage.getItem('created_tokens') || '[]');
-        createdTokens.push(token);
-        localStorage.setItem('created_tokens', JSON.stringify(createdTokens));
+        let created = JSON.parse(localStorage.getItem('created_tokens') || '[]');
+        created.push(newToken);
+        localStorage.setItem('created_tokens', JSON.stringify(created));
+
+        progressFill.style.width = '100%';
 
         container.innerHTML = `
-          <h1>✅ 胶囊生成成功！</h1>
-          <p style="color:#666; margin: 15px 0;">专属链接已准备好，发给TA即可</p>
-          <div style="background:#f8f0f3; border-radius:16px; padding:15px; word-break:break-all; font-size:12px; color:#d6336c; margin:15px 0;">${link}</div>
-          <button class="btn" id="copyBtn">📋 一键复制链接</button>
-          <p id="viewStatus" style="color:#e6739f; margin-top:15px; font-weight:600;">⏳ 等待TA打开...</p>
-          <p class="note">💡 对方点击“原谅”后，云端数据将自动删除，但TA的手机上将永久保留这份回忆</p>
+          <div style="font-size:52px; margin-bottom:14px;" class="capsule-drop">✅</div>
+          <h1 class="fade-in">胶囊生成成功！</h1>
+          <p class="sub-title fade-in-delay">专属链接已就绪，发给TA吧</p>
+          <div style="background:var(--pink-bg); border-radius:16px; padding:14px; word-break:break-all; font-size:11px; color:var(--pink-deep); margin:16px 0; border:1px solid var(--pink-pale);" class="fade-in-delay">${link}</div>
+          <button class="btn fade-in-delay" id="copyBtn">📋 一键复制链接</button>
+          <p id="viewStatus" style="color:var(--text-light); margin-top:16px; font-size:13px;">⏳ 等待TA打开...</p>
+          <p class="note">💡 对方点击"原谅"后，云端数据自动删除，但TA手机上将永久保留这份回忆</p>
         `;
 
-        db.ref('capsules/' + token + '/viewed').on('value', snap => {
+        db.ref('capsules/' + newToken + '/viewed').on('value', snap => {
           if (snap.val() === true) {
             const vs = document.getElementById('viewStatus');
-            if (vs) vs.textContent = '✅ TA已打开胶囊';
+            if (vs) vs.textContent = '✅ TA已打开胶囊 💕';
           }
         });
 
         document.getElementById('copyBtn').addEventListener('click', () => {
-          if (navigator.clipboard) {
-            navigator.clipboard.writeText(link).then(() => alert('链接已复制！快去发给TA吧 💕'));
-          } else {
-            const ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-            alert('链接已复制！快去发给TA吧 💕');
-          }
+          const copy = () => {
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(link).then(() => alert('链接已复制！快去发给TA吧 💕'));
+            } else {
+              const ta = document.createElement('textarea');
+              ta.value = link; document.body.appendChild(ta); ta.select();
+              document.execCommand('copy'); document.body.removeChild(ta);
+              alert('链接已复制！快去发给TA吧 💕');
+            }
+          };
+          copy();
         });
       });
     }
 
-    // ========== 接收方入口 ==========
+    // ===== 接收方入口 =====
     function initReceiver(token) {
       const container = document.getElementById('mainContainer');
       const createdTokens = JSON.parse(localStorage.getItem('created_tokens') || '[]');
-      if (createdTokens.includes(token)) {
-        buildSenderPreview(token);
-        return;
-      }
+      if (createdTokens.includes(token)) { buildSenderPreview(token); return; }
 
-      container.innerHTML = '<h1>⏳ 加载中...</h1><div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>';
+      const localKey = 'capsule_local_' + token;
+      const localData = localStorage.getItem(localKey);
+      if (localData) { buildMemorialUI(JSON.parse(localData)); return; }
 
-      const localDataKey = 'capsule_local_' + token;
-      const localData = localStorage.getItem(localDataKey);
-      if (localData) {
-        const data = JSON.parse(localData);
-        buildMemorialUI(data);
-        return;
-      }
-
-      const progressFill = document.getElementById('progressFill');
-      let progress = 0;
-      const progressTimer = setInterval(() => {
-        progress += 15; if (progress > 90) progress = 90;
-        if (progressFill) progressFill.style.width = progress + '%';
-      }, 300);
-
-      db.ref('forgiven/' + token).once('value').then(snapshot => {
-        if (snapshot.exists()) {
-          db.ref('capsules/' + token).once('value').then(capSnapshot => {
-            clearInterval(progressTimer);
-            const data = capSnapshot.val();
-            if (data) {
-              localStorage.setItem(localDataKey, JSON.stringify(data));
-              if (progressFill) progressFill.style.width = '100%';
-              setTimeout(() => buildMemorialUI(data), 300);
-            } else {
-              container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>';
-            }
-          });
-        } else {
-          db.ref('capsules/' + token).once('value').then(capSnapshot => {
-            clearInterval(progressTimer);
-            const data = capSnapshot.val();
-            if (!data) {
-              container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>';
-              return;
-            }
-            if (data.viewed !== true) {
-              db.ref('capsules/' + token + '/viewed').set(true);
-            }
-            if (progressFill) progressFill.style.width = '100%';
-            setTimeout(() => buildReceiverUI(data, token, localDataKey), 300);
-          });
-        }
-      }).catch(() => {
-        clearInterval(progressTimer);
-        container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络后重试</p>';
-      });
-    }
-
-    // ========== 通用辅助函数 ==========
-    function escapeHtml(text) {
-      return String(text).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
-    }
-
-    function buildEnvelopeHTML(message) {
-      return `<div class="envelope-container" id="envelopeContainer"><div class="envelope-body"></div><div class="envelope-flap" id="envelopeFlap"></div><div class="envelope-seal" id="envelopeSeal">💌</div><div class="letter-paper" id="letterPaper"><div class="letter-text">${escapeHtml(message)}</div></div></div><p class="sub-title">点击信封，拆开看看</p>`;
-    }
-
-    function playSlideshow(images, music, contentArea, callback) {
-      let audioCtx = null, musicPlaying = false;
-      function startMusic() {
-        if (music === 'none' || musicPlaying) return;
-        try {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const notes = { melody1: [523,659,784,1047,784,659,523,440,523,659,784,659,523,440,392,440,523,392,440,523,659,523,440,392,330,392,440], melody2: [392,440,523,392,440,523,659,523,440,392,330,392,440,330,392,440,523,440,392,330,294,330,392] }[music] || [];
-          let ni = 0;
-          function p() { if (!audioCtx) return; const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type = 'sine'; o.frequency.value = notes[ni%notes.length]; g.gain.setValueAtTime(0.15, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 1.5); ni++; }
-          p(); musicPlaying = true; window._musicInterval = setInterval(p, 2200);
-        } catch(e) {}
-      }
-      function stopMusic() { if (window._musicInterval) clearInterval(window._musicInterval); if (audioCtx) audioCtx.close(); musicPlaying = false; }
-
-      contentArea.innerHTML = `<div class="slideshow-viewer" id="slideshowViewer">${images.map((src, i) => `<img src="${src}" class="${i === 0 ? 'active' : ''}">`).join('')}</div><p class="sub-title" id="slideshowHint">回忆缓缓展开...</p>`;
-      startMusic();
-      const imgs = document.querySelectorAll('.slideshow-viewer img');
-      const hint = document.getElementById('slideshowHint');
-      let current = 0; const total = imgs.length;
-      const phrases = ['这些画面，你还记得吗...', '每一个瞬间，都是真的...', '回忆不会说谎...', '那时候的我们，多好啊...', 'TA一直记得...'];
-      function nextSlide() {
-        imgs[current].classList.remove('active'); current++;
-        if (current < total) {
-          imgs[current].classList.add('active');
-          if (hint && phrases[current-1]) hint.textContent = phrases[current-1];
-          window._slideTimer = setTimeout(nextSlide, 3500);
-        } else {
-          if (hint) hint.textContent = '回忆播完了，但那些美好从未离开';
-          stopMusic();
-          if (callback) setTimeout(callback, 800);
-        }
-      }
-      window._slideTimer = setTimeout(nextSlide, 3500);
-    }
-
-    function showLetterStep(message, contentArea, callback) {
-      contentArea.innerHTML = buildEnvelopeHTML(message);
-      const flap = document.getElementById('envelopeFlap');
-      const paper = document.getElementById('letterPaper');
-      const seal = document.getElementById('envelopeSeal');
-      document.getElementById('envelopeContainer').addEventListener('click', () => {
-        if (flap.classList.contains('open')) return;
-        flap.classList.add('open');
-        paper.classList.add('show');
-        // 印章淡出
-        setTimeout(() => {
-          if (seal) seal.classList.add('hidden');
-        }, 600);
-        // 继续按钮
-        setTimeout(() => {
-          const btn = document.createElement('button');
-          btn.className = 'btn'; btn.textContent = '继续'; btn.style.marginTop = '20px';
-          contentArea.appendChild(btn);
-          btn.addEventListener('click', () => { if (callback) callback(); });
-        }, 1500);
-      });
-    }
-
-    function showVoiceStep(voice, contentArea, callback) {
-      contentArea.innerHTML = `
-        <h1>🎙️ TA还给你录了一段话</h1>
-        <div class="voice-player-wrapper">
-          <button class="voice-play-btn" id="voicePlayBtn"><div class="voice-play-icon"></div></button>
-          <div class="voice-wave"><span></span><span></span><span></span><span></span></div>
-        </div>
-        <audio id="voiceAudio" src="${voice}" style="display:none;"></audio>
-        <button class="btn" id="voiceContinueBtn" style="margin-top:25px;">继续</button>
+      container.innerHTML = `
+        <div style="font-size:40px; margin:20px 0;">💊</div>
+        <h1>胶囊加载中</h1>
+        <div class="progress-bar" style="margin:20px 0;"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        <p class="sub-title">请稍等片刻...</p>
       `;
 
-      const audio = document.getElementById('voiceAudio');
-      const playBtn = document.getElementById('voicePlayBtn');
+      const pf = document.getElementById('progressFill');
+      let prog = 0;
+      const pt = setInterval(() => { prog = Math.min(prog + 12, 88); if (pf) pf.style.width = prog + '%'; }, 300);
+
+      db.ref('forgiven/' + token).once('value').then(snap => {
+        if (snap.exists()) {
+          db.ref('capsules/' + token).once('value').then(cs => {
+            clearInterval(pt);
+            const data = cs.val();
+            if (data) { localStorage.setItem(localKey, JSON.stringify(data)); if (pf) pf.style.width = '100%'; setTimeout(() => buildMemorialUI(data), 300); }
+            else { container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>'; }
+          });
+        } else {
+          db.ref('capsules/' + token).once('value').then(cs => {
+            clearInterval(pt);
+            const data = cs.val();
+            if (!data) { container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>'; return; }
+            if (!data.viewed) db.ref('capsules/' + token + '/viewed').set(true);
+            if (pf) pf.style.width = '100%';
+            setTimeout(() => buildReceiverUI(data, token, localKey), 300);
+          });
+        }
+      }).catch(() => { clearInterval(pt); container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络后刷新重试</p>'; });
+    }
+
+    // ===== 信封步骤 =====
+    function showLetterStep(message, area, cb) {
+      area.innerHTML = `
+        <h1>💌 TA还留了一封信</h1>
+        <div class="envelope-wrapper">
+          <div class="envelope-container" id="envBox">
+            <div class="envelope-body"></div>
+            <div class="envelope-flap" id="envFlap"></div>
+            <div class="envelope-seal" id="envSeal">💌</div>
+            <div class="letter-paper" id="envPaper">
+              <div class="letter-text">${escapeHtml(message)}</div>
+            </div>
+          </div>
+          <p class="envelope-hint">点击信封，拆开看看</p>
+        </div>
+      `;
+      document.getElementById('envBox').addEventListener('click', () => {
+        const flap = document.getElementById('envFlap');
+        if (flap.classList.contains('open')) return;
+        flap.classList.add('open');
+        document.getElementById('envPaper').classList.add('show');
+        setTimeout(() => { const s = document.getElementById('envSeal'); if (s) s.classList.add('hidden'); }, 500);
+        setTimeout(() => {
+          const btn = document.createElement('button');
+          btn.className = 'btn'; btn.textContent = '继续 →';
+          btn.style.marginTop = '20px';
+          area.appendChild(btn);
+          btn.addEventListener('click', () => { if (cb) cb(); });
+        }, 1600);
+      });
+    }
+
+    // ===== 语音步骤 =====
+    function showVoiceStep(voice, area, cb) {
+      area.innerHTML = `
+        <h1>🎙️ TA还给你录了一段话</h1>
+        <p class="sub-title">按下播放键，听听TA说什么</p>
+        <div class="voice-player-wrapper">
+          <button class="voice-play-btn" id="vPlayBtn"><div class="voice-play-icon"></div></button>
+          <div class="voice-wave"><span></span><span></span><span></span><span></span></div>
+          <span class="voice-time" id="vTime">0:00</span>
+        </div>
+        <audio id="vAudio" src="${voice}" style="display:none;" preload="auto"></audio>
+        <button class="btn" id="vContinueBtn" style="margin-top:25px;">继续 →</button>
+      `;
+      const audio = document.getElementById('vAudio');
+      const playBtn = document.getElementById('vPlayBtn');
+      const timeEl = document.getElementById('vTime');
+      let timer = null;
 
       playBtn.addEventListener('click', () => {
         if (audio.paused) {
           audio.play();
           playBtn.classList.add('playing');
+          timer = setInterval(() => {
+            const s = Math.floor(audio.currentTime);
+            timeEl.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+          }, 500);
         } else {
-          audio.pause();
-          playBtn.classList.remove('playing');
+          audio.pause(); playBtn.classList.remove('playing'); clearInterval(timer);
         }
       });
-      audio.addEventListener('ended', () => {
-        playBtn.classList.remove('playing');
-      });
-
-      document.getElementById('voiceContinueBtn').addEventListener('click', () => {
-        audio.pause();
-        if (callback) callback();
-      });
+      audio.addEventListener('ended', () => { playBtn.classList.remove('playing'); clearInterval(timer); });
+      document.getElementById('vContinueBtn').addEventListener('click', () => { audio.pause(); if (cb) cb(); });
     }
 
-    // ========== 接收方正常流程 ==========
-    function buildReceiverUI(data, token, localDataKey) {
+    // ===== 幻灯片 =====
+    function playSlideshow(images, music, area, cb) {
+      let audioCtx = null, musicOn = false;
+
+      function startMusic() {
+        if (music === 'none' || musicOn) return;
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const notes = {
+            melody1: [523,659,784,1047,784,659,523,440,523,659,784,659,523,440,392,440],
+            melody2: [392,440,523,392,440,523,659,523,440,392,330,392,440,523,440,392]
+          }[music] || [];
+          let ni = 0;
+          function p() {
+            if (!audioCtx) return;
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.type = 'sine'; o.frequency.value = notes[ni % notes.length];
+            g.gain.setValueAtTime(0.12, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.8);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 1.8); ni++;
+          }
+          p(); musicOn = true;
+          window._musicInterval = setInterval(p, 2400);
+        } catch(e) {}
+      }
+      function stopMusic() {
+        if (window._musicInterval) clearInterval(window._musicInterval);
+        if (audioCtx) audioCtx.close(); musicOn = false;
+      }
+
+      const phrases = ['这些画面，你还记得吗...', '每一个瞬间，都是真的...', '回忆不会说谎...', '那时候的我们，多好啊...', 'TA一直记得...', '珍惜每一次在一起...'];
+      area.innerHTML = `
+        <div class="slideshow-viewer" id="slideViewer">
+          ${images.map((src, i) => `<img src="${src}" class="${i === 0 ? 'active' : ''}">`).join('')}
+          <div class="slide-counter" id="slideCounter">1 / ${images.length}</div>
+          <div class="slide-phrase" id="slidePhrase">回忆缓缓展开...</div>
+        </div>
+      `;
+      startMusic();
+
+      const imgs = document.querySelectorAll('.slideshow-viewer img');
+      const counter = document.getElementById('slideCounter');
+      const phrase = document.getElementById('slidePhrase');
+      let cur = 0;
+
+      function next() {
+        imgs[cur].classList.remove('active'); cur++;
+        if (cur < images.length) {
+          imgs[cur].classList.add('active');
+          counter.textContent = (cur + 1) + ' / ' + images.length;
+          if (phrases[cur - 1]) phrase.textContent = phrases[cur - 1];
+          window._slideTimer = setTimeout(next, 3500);
+        } else {
+          phrase.textContent = '回忆播完了，但那些美好从未离开 ✨';
+          counter.textContent = '';
+          stopMusic();
+          if (cb) setTimeout(cb, 900);
+        }
+      }
+      window._slideTimer = setTimeout(next, 3500);
+    }
+
+    // ===== 接收方完整流程 =====
+    function buildReceiverUI(data, token, localKey) {
       const container = document.getElementById('mainContainer');
       const { nickname, message, music, question, answer, images, voice } = data;
-      const hasMsg = message && message.trim().length > 0;
-      const hasVoice = voice && voice.length > 0;
-      const hasQuiz = question && answer && question.trim().length > 0 && answer.trim().length > 0;
+      const hasMsg = message?.trim().length > 0;
+      const hasVoice = voice?.length > 0;
+      const hasQuiz = question?.trim().length > 0 && answer?.trim().length > 0;
 
-      container.innerHTML = `<div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊</div><div id="contentArea"></div>`;
-      const contentArea = document.getElementById('contentArea');
+      container.innerHTML = `
+        <div class="nickname-bar capsule-drop">💝 专属于 ${escapeHtml(nickname)} 的胶囊</div>
+        <div id="contentArea"></div>
+      `;
+      const area = document.getElementById('contentArea');
 
-      contentArea.innerHTML = `<h1>💊 你收到一颗和好胶囊</h1><div class="start-card"><div class="start-emoji">🕊️</div><div class="start-desc">${escapeHtml(nickname)}，这份回忆是专门为你准备的。<br>希望能和你重新开始。<br>准备好了吗？</div><button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button></div>`;
+      area.innerHTML = `
+        <h1 class="fade-in">💊 你收到一颗和好胶囊</h1>
+        <div class="start-card fade-in-delay">
+          <span class="start-emoji">🕊️</span>
+          <div class="start-desc">${escapeHtml(nickname)}，这份回忆是专门为你准备的。<br>希望能和你重新开始。<br><br>准备好了吗？</div>
+          <button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button>
+        </div>
+      `;
+
       document.getElementById('startBtn').addEventListener('click', () => {
-        playSlideshow(images, music, contentArea, () => {
-          if (hasMsg) { showLetterStep(message, contentArea, () => afterLetter()); }
-          else { afterLetter(); }
+        playSlideshow(images, music, area, () => {
+          if (hasMsg) showLetterStep(message, area, afterLetter);
+          else afterLetter();
         });
       });
 
       function afterLetter() {
-        if (hasVoice) { showVoiceStep(voice, contentArea, afterVoice); }
-        else { afterVoice(); }
+        if (hasVoice) showVoiceStep(voice, area, afterVoice);
+        else afterVoice();
       }
       function afterVoice() {
-        if (hasQuiz) { showQuiz(); }
-        else { showCoupon(); }
+        if (hasQuiz) showQuiz();
+        else showCoupon();
       }
 
       function showQuiz() {
-        contentArea.innerHTML = `<h1>❓ 在原谅之前...</h1><p style="color:#666;margin:15px 0;">${escapeHtml(question)}</p><input type="text" class="quiz-input" id="quizAnswer" placeholder="请输入你的答案"><p class="quiz-error" id="quizError">答案不对哦 💭</p><button class="btn" id="quizBtn">✅ 确认答案</button>`;
+        area.innerHTML = `
+          <h1>❓ 在原谅之前...</h1>
+          <p style="color:var(--text-mid); margin:16px 0; font-size:15px; line-height:1.7;">${escapeHtml(question)}</p>
+          <input type="text" class="quiz-input" id="quizAns" placeholder="请输入你的答案">
+          <p class="quiz-error" id="quizErr">答案不对哦 💭 再想想</p>
+          <button class="btn" id="quizBtn">✅ 确认答案</button>
+        `;
         document.getElementById('quizBtn').addEventListener('click', () => {
-          if (document.getElementById('quizAnswer').value.trim() === answer) { showCoupon(); }
-          else { document.getElementById('quizError').style.display = 'block'; }
+          if (document.getElementById('quizAns').value.trim() === answer) showCoupon();
+          else document.getElementById('quizErr').style.display = 'block';
         });
+        document.getElementById('quizAns').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('quizBtn').click(); });
       }
 
       function showCoupon() {
-        contentArea.innerHTML = `<h1>💊 和好胶囊</h1><div class="coupon-card"><div class="coupon-title">专属和好券</div><div class="coupon-desc">看完我们的回忆，<br>你愿意给彼此一个重新开始的机会吗？</div><button class="forgive-btn" id="forgiveBtn">💖 原谅TA，点击和好</button></div>`;
+        area.innerHTML = `
+          <h1 class="fade-in">💊 和好胶囊</h1>
+          <div class="coupon-card fade-in-delay">
+            <div class="coupon-title">专 属 和 好 券</div>
+            <div class="coupon-desc">看完我们的回忆，<br>你愿意给彼此一个重新开始的机会吗？</div>
+            <button class="forgive-btn" id="forgiveBtn">💖 原谅TA，点击和好</button>
+          </div>
+        `;
         document.getElementById('forgiveBtn').addEventListener('click', async () => {
-          localStorage.setItem(localDataKey, JSON.stringify(data));
+          document.getElementById('forgiveBtn').textContent = '💕 和好成功...';
+          document.getElementById('forgiveBtn').disabled = true;
+          localStorage.setItem(localKey, JSON.stringify(data));
           await db.ref('forgiven/' + token).set(true);
           await db.ref('capsules/' + token).remove();
-          contentArea.innerHTML = `<h1>🌸</h1><div class="forgiven-msg">和好成功！<br>你们已经和好如初啦 💕</div><p style="color:#666;margin-top:15px;">这份回忆将永远为你留存</p><button class="memorial-btn" id="memorialBtn">📽️ 再次播放回忆</button>`;
-          document.getElementById('memorialBtn').addEventListener('click', () => { buildMemorialUI(data); });
+          launchFireworks();
+          area.innerHTML = `
+            <div style="font-size:60px; margin:10px 0;" class="capsule-drop">🌸</div>
+            <div class="forgiven-msg fade-in">和好成功！<br>你们已经和好如初啦 💕</div>
+            <p style="color:var(--text-light); margin-top:14px; font-size:13px;" class="fade-in-delay">这份回忆将永远为你留存</p>
+            <button class="memorial-btn fade-in-delay2" id="memBtn">📽️ 再次播放回忆</button>
+          `;
+          document.getElementById('memBtn').addEventListener('click', () => buildMemorialUI(data));
         });
       }
-      window.addEventListener('beforeunload', () => { if (window._slideTimer) clearTimeout(window._slideTimer); });
     }
 
-    // ========== 预览模式 ==========
+    // ===== 预览模式 =====
     function buildSenderPreview(token) {
       const container = document.getElementById('mainContainer');
-      container.innerHTML = '<h1>🔍 加载预览中...</h1>';
-      db.ref('capsules/' + token).once('value').then(snapshot => {
-        const data = snapshot.val();
+      container.innerHTML = '<div style="font-size:36px;margin:20px 0;">🔍</div><h1>加载预览中...</h1>';
+      db.ref('capsules/' + token).once('value').then(snap => {
+        const data = snap.val();
         if (!data) { container.innerHTML = '<h1>😔</h1><p class="error-text">链接已失效</p>'; return; }
         const { nickname, message, music, images, voice, viewed } = data;
-        const hasMsg = message && message.trim().length > 0;
-        const hasVoice = voice && voice.length > 0;
+        const hasMsg = message?.trim().length > 0;
+        const hasVoice = voice?.length > 0;
 
-        container.innerHTML = `<div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊（预览）${viewed ? ' · 对方已读' : ''}</div><h1>📸 胶囊预览</h1><p style="color:#666;">这是你制作的胶囊，对方将看到以下内容</p><div id="contentArea"></div>`;
-        const contentArea = document.getElementById('contentArea');
-
-        contentArea.innerHTML = `<div class="start-card"><div class="start-emoji">🕊️</div><div class="start-desc">这份回忆希望能重新开始。</div><button class="btn" id="previewStartBtn">📽️ 预览播放</button></div>`;
-        document.getElementById('previewStartBtn').addEventListener('click', () => {
-          playSlideshow(images, music, contentArea, () => {
-            if (hasMsg) { showLetterStep(message, contentArea, () => afterLetter()); }
-            else { afterLetter(); }
+        container.innerHTML = `
+          <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊（预览）${viewed ? ' · ✅ 对方已读' : ' · ⏳ 未读'}</div>
+          <h1>📸 胶囊预览</h1>
+          <p class="sub-title">这是你制作的胶囊，对方将看到以下内容</p>
+          <div id="contentArea"></div>
+        `;
+        const area = document.getElementById('contentArea');
+        area.innerHTML = `
+          <div class="start-card">
+            <span class="start-emoji">🕊️</span>
+            <div class="start-desc">这份回忆是专门为你准备的。</div>
+            <button class="btn" id="pvStartBtn">📽️ 预览播放</button>
+          </div>
+        `;
+        document.getElementById('pvStartBtn').addEventListener('click', () => {
+          playSlideshow(images, music, area, () => {
+            if (hasMsg) showLetterStep(message, area, afterLetter);
+            else afterLetter();
           });
         });
-
         function afterLetter() {
-          if (hasVoice) { showVoiceStep(voice, contentArea, afterVoice); }
-          else { afterVoice(); }
+          if (hasVoice) showVoiceStep(voice, area, afterVoice);
+          else afterVoice();
         }
         function afterVoice() {
-          contentArea.innerHTML = '<h1>✅ 预览结束</h1><p style="color:#666;">这就是对方将看到的完整内容。真正的“原谅”按钮只会出现在TA的链接里。</p>';
+          area.innerHTML = '<h1>✅ 预览结束</h1><p style="color:var(--text-light);margin-top:12px;">这就是对方将看到的完整内容。真正的"原谅"按钮只会出现在TA的链接里。</p>';
         }
       });
     }
 
-    // ========== 纪念册模式 ==========
+    // ===== 纪念册模式 =====
     function buildMemorialUI(data) {
       const container = document.getElementById('mainContainer');
       const { nickname, message, music, images, voice } = data;
-      const hasMsg = message && message.trim().length > 0;
-      const hasVoice = voice && voice.length > 0;
+      const hasMsg = message?.trim().length > 0;
+      const hasVoice = voice?.length > 0;
 
-      container.innerHTML = `<div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的和好纪念册</div><h1>🌸 和好成功！</h1><p style="color:#666;">这份回忆将永远为你留存</p><div id="contentArea"></div>`;
-      const contentArea = document.getElementById('contentArea');
-
-      contentArea.innerHTML = `<div class="start-card"><div class="start-emoji">🕊️</div><div class="start-desc">你们已经和好如初，<br>但这份回忆值得永远珍藏。</div><button class="memorial-btn" id="memorialStartBtn">📽️ 再次播放回忆</button></div>`;
-      document.getElementById('memorialStartBtn').addEventListener('click', () => {
-        playSlideshow(images, music, contentArea, () => {
-          if (hasMsg) { showLetterStep(message, contentArea, () => afterLetter()); }
-          else { afterLetter(); }
+      container.innerHTML = `
+        <div class="nickname-bar capsule-drop">💝 专属于 ${escapeHtml(nickname)} 的和好纪念册</div>
+        <h1 class="fade-in">🌸 和好成功！</h1>
+        <p class="sub-title fade-in-delay">这份回忆将永远为你留存</p>
+        <div id="contentArea"></div>
+      `;
+      const area = document.getElementById('contentArea');
+      area.innerHTML = `
+        <div class="start-card fade-in-delay2">
+          <span class="start-emoji">🕊️</span>
+          <div class="start-desc">你们已经和好如初，<br>但这份回忆值得永远珍藏。</div>
+          <button class="memorial-btn" id="memStartBtn">📽️ 再次播放回忆</button>
+        </div>
+      `;
+      document.getElementById('memStartBtn').addEventListener('click', () => {
+        playSlideshow(images, music, area, () => {
+          if (hasMsg) showLetterStep(message, area, afterLetter);
+          else afterLetter();
         });
       });
-
       function afterLetter() {
-        if (hasVoice) { showVoiceStep(voice, contentArea, afterVoice); }
-        else { afterVoice(); }
+        if (hasVoice) showVoiceStep(voice, area, afterVoice);
+        else afterVoice();
       }
       function afterVoice() {
-        contentArea.innerHTML = '<h1>💕</h1><p style="color:#666;">这些回忆，永远属于你们。</p>';
+        area.innerHTML = '<div style="font-size:48px; margin:16px 0;">💕</div><p style="color:var(--text-light);">这些回忆，永远属于你们。</p>';
       }
     }
+
+    window.addEventListener('beforeunload', () => { if (window._slideTimer) clearTimeout(window._slideTimer); });
   </script>
 </body>
 </html>
