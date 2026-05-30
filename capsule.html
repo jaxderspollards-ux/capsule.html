@@ -278,6 +278,7 @@
       transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
       animation: gentleFloat 3.5s ease-in-out infinite;
       filter: drop-shadow(0 15px 25px rgba(196,69,105,0.15));
+      will-change: transform;
     }
     .envelope-container.is-open {
       animation: none;
@@ -323,6 +324,7 @@
       transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1), z-index 0s 0.35s;
       z-index: 4;
       border-radius: 8px 8px 0 0;
+      will-change: transform;
     }
     .envelope-flap.open {
       transform: rotateX(180deg);
@@ -362,7 +364,7 @@
     }
     .letter-paper.show {
       transform: translateY(-110px);
-      height: 240px;
+      max-height: 240px;
       box-shadow: 0 12px 35px rgba(196,69,105,0.18);
     }
     .letter-deco { position: absolute; top: 12px; right: 14px; font-size: 16px; opacity: 0.8; }
@@ -598,12 +600,959 @@
   <canvas class="firework-canvas" id="fireworkCanvas"></canvas>
   <div class="container" id="mainContainer"></div>
 
-  <script>
-    const CURRENT_PASSWORD = 'hehao2024';
+    <script>
+    // ============================================================
+    // 密码验证方案说明：
+    // 1. 前端不再硬编码密码，改为在 Firebase 的 valid_passwords_hashed 节点存储密码的 SHA-256 哈希。
+    // 2. 用户输入密码后，前端使用 Web Crypto API 计算 SHA-256，再查询数据库是否存在对应节点。
+    // 3. 请务必在 Firebase 控制台更新安全规则（详见文件末尾注释）。
+    // ============================================================
+
     const firebaseConfig = { databaseURL: "https://sorry-capsule-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    const _fbDb = firebase.database();
 
+    // ===================== State 对象 =====================
+    const State = {
+      _data: {
+        currentToken: null,
+        currentTheme: 'pink',
+        localKey: null,
+        selectedFiles: [],
+        voiceBase64: null,
+        mediaRecorder: null,
+        audioChunks: [],
+        audioCtx: null,
+        recTimerInterval: null,
+        recSeconds: 0,
+        isRecording: false,
+        previewInterval: null,
+        activeTimers: [],
+        activeListeners: [],
+        thumbnailCache: []
+      },
+      get(key) { return this._data[key]; },
+      set(key, val) { this._data[key] = val; return val; },
+      push(key, val) { this._data[key].push(val); return val; }
+    };
+
+    // ===================== Utils 对象 =====================
+    const Utils = {
+      escapeHtml(text) {
+        return String(text).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]);
+      },
+
+      // 计算 SHA-256 哈希（返回十六进制字符串）
+      async sha256(message) {
+        const msgBuffer = new TextEncoder().encode(message);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+      },
+
+      compressImage(file, maxWidth = 600, quality = 0.6, maxHeight = 800) {
+        return new Promise((resolve) => {
+          const supportsWorker = typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined';
+          if (supportsWorker) {
+            const workerCode = `
+              self.onmessage = function(e) {
+                const { dataUrl, maxWidth, maxHeight, quality } = e.data;
+                const img = new Image();
+                img.onload = function() {
+                  let w = img.width, h = img.height;
+                  if (w > maxWidth) { h = (h * maxWidth) / w; w = maxWidth; }
+                  if (h > maxHeight) { w = (w * maxHeight) / h; h = maxHeight; }
+                  const canvas = new OffscreenCanvas(w, h);
+                  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                  canvas.convertToBlob({ type: 'image/jpeg', quality }).then(blob => {
+                    const reader = new FileReader();
+                    reader.onload = () => self.postMessage({ dataUrl: reader.result });
+                    reader.readAsDataURL(blob);
+                  });
+                };
+                img.src = dataUrl;
+              };
+            `;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            const worker = new Worker(workerUrl);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              worker.postMessage({ dataUrl: e.target.result, maxWidth, maxHeight, quality });
+              worker.onmessage = (msg) => { URL.revokeObjectURL(workerUrl); worker.terminate(); resolve(msg.data.dataUrl); };
+              worker.onerror = () => { URL.revokeObjectURL(workerUrl); worker.terminate(); fallback(); };
+            };
+            reader.readAsDataURL(file);
+          } else {
+            fallback();
+          }
+          function fallback() {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let w = img.width, h = img.height;
+                if (w > maxWidth) { h = (h * maxWidth) / w; w = maxWidth; }
+                if (h > maxHeight) { w = (w * maxHeight) / h; h = maxHeight; }
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+              };
+              img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      },
+
+      compressThumbnail(file) {
+        return Utils.compressImage(file, 120, 0.4, 120);
+      },
+
+      launchFireworks() {
+        const canvas = document.getElementById('fireworkCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const particles = [];
+        const colors = ['#ff6b9d','#ffd1dc','#ffb3c6','#ff4081','#fff','#ffd700'];
+        for (let burst = 0; burst < 6; burst++) {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height * 0.6;
+          for (let i = 0; i < 60; i++) {
+            const angle = (Math.PI * 2 / 60) * i;
+            const speed = Math.random() * 5 + 2;
+            particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, alpha: 1, color: colors[Math.floor(Math.random()*colors.length)], size: Math.random()*3+1, delay: burst*200 });
+          }
+        }
+        let startTime = null;
+        function animate(ts) {
+          if (!startTime) startTime = ts;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          let alive = false;
+          for (const p of particles) {
+            if (ts - startTime < p.delay) { alive = true; continue; }
+            p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.alpha -= 0.015;
+            if (p.alpha > 0) { alive = true; ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.restore(); }
+          }
+          if (alive) requestAnimationFrame(animate);
+          else ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        requestAnimationFrame(animate);
+      },
+
+      stopAllTimers() {
+        const timers = State.get('activeTimers');
+        timers.forEach(id => { clearInterval(id); clearTimeout(id); });
+        State.set('activeTimers', []);
+        const listeners = State.get('activeListeners');
+        listeners.forEach(ref => { try { ref.off('value'); } catch(e) {} });
+        State.set('activeListeners', []);
+        const ac = State.get('audioCtx');
+        if (ac) { try { ac.close(); } catch(e) {} State.set('audioCtx', null); }
+        const rt = State.get('recTimerInterval');
+        if (rt) { clearInterval(rt); State.set('recTimerInterval', null); }
+        const pi = State.get('previewInterval');
+        if (pi) { clearInterval(pi); State.set('previewInterval', null); }
+      },
+
+      addTimer(id) { State.push('activeTimers', id); return id; },
+
+      safeSetLocalStorage(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch(e) {
+          if (e.name === 'QuotaExceededError' || e.code === 22) {
+            const keys = Object.keys(localStorage).filter(k => k.startsWith('capsule_local_'));
+            keys.slice(0, 2).forEach(k => localStorage.removeItem(k));
+            try { localStorage.setItem(key, value); } catch(e2) {
+              console.warn('存储空间不足，部分回忆无法缓存', e2);
+              Utils.showToast('存储空间不足，部分回忆可能无法缓存', 'warn');
+            }
+          }
+        }
+      },
+
+      showToast(msg, type = 'info') {
+        const t = document.createElement('div');
+        const colors = { info: '#ff6b9d', warn: '#f59e0b', error: '#e03131' };
+        t.style.cssText = `position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:${colors[type]||colors.info};color:white;padding:12px 24px;border-radius:50px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2);transition:opacity 0.4s;pointer-events:none;`;
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2800);
+      }
+    };
+
+    // ===================== DB 对象 =====================
+    const DB = {
+      async createCapsule(metaData) {
+        const newRef = _fbDb.ref('capsules').push();
+        await newRef.set(metaData);
+        return newRef.key;
+      },
+      async uploadImages(token, imagesBase64, onProgress) {
+        const total = imagesBase64.length;
+        const uploadBatchSize = 5;
+        for (let i = 0; i < total; i += uploadBatchSize) {
+          const batch = imagesBase64.slice(i, i + uploadBatchSize);
+          const batchObj = {};
+          batch.forEach((img, j) => { batchObj[i + j] = img; });
+          await _fbDb.ref('capsules/' + token + '/images').update(batchObj);
+          if (onProgress) onProgress(Math.min(i + uploadBatchSize, total), total);
+        }
+      },
+      getCapsule(token) {
+        return _fbDb.ref('capsules/' + token).once('value').then(snap => {
+          const data = snap.val();
+          if (data && data.images && !Array.isArray(data.images)) {
+            data.images = Object.keys(data.images).sort((a,b) => Number(a)-Number(b)).map(k => data.images[k]);
+          }
+          return data;
+        });
+      },
+      async markViewed(token) {
+        await _fbDb.ref('capsules/' + token + '/viewed').set(true);
+      },
+      async markForgiven(token) {
+        await _fbDb.ref('forgiven/' + token).set(true);
+        await _fbDb.ref('capsules/' + token).remove();
+      },
+      isForgiven(token) {
+        return _fbDb.ref('forgiven/' + token).once('value').then(s => s.exists());
+      },
+      watchViewed(token, cb) {
+        const ref = _fbDb.ref('capsules/' + token + '/viewed');
+        ref.on('value', snap => { if (snap.val() === true) cb(); });
+        State.push('activeListeners', ref);
+        return ref;
+      }
+    };
+
+    // ===================== UI 对象 =====================
+    const UI = {
+      renderPasswordGate() {
+        Utils.stopAllTimers();
+        const container = document.getElementById('mainContainer');
+        container.innerHTML = `
+          <div class="lock-icon capsule-drop">🔐</div>
+          <h1 class="fade-in">验证你的胶囊</h1>
+          <p class="sub-title fade-in-delay">请输入购买后获得的专属密码</p>
+          <input type="password" class="password-input fade-in-delay" id="passwordInput" placeholder="请输入密码">
+          <p class="error-msg" id="errorMsg">❌ 密码错误，请重试</p>
+          <button class="btn fade-in-delay2" id="verifyBtn">🔓 验证进入</button>
+          <p class="note fade-in-delay2">💡 密码由卖家提供，每个密码仅限使用一次</p>
+        `;
+        const verifyBtn = document.getElementById('verifyBtn');
+        const passwordInput = document.getElementById('passwordInput');
+        const errorMsg = document.getElementById('errorMsg');
+        
+        verifyBtn.addEventListener('click', async () => {
+          const v = passwordInput.value.trim();
+          if (!v) { errorMsg.style.display = 'block'; return; }
+          
+          // 对输入的密码进行 SHA-256 哈希
+          const hash = await Utils.sha256(v);
+          
+          // 查询 Firebase 中是否存在该哈希节点
+          try {
+            const snapshot = await _fbDb.ref('valid_passwords_hashed/' + hash).once('value');
+            if (snapshot.exists()) {
+              errorMsg.style.display = 'none';
+              UI.renderSender();
+            } else {
+              errorMsg.textContent = '❌ 密码错误，请重试';
+              errorMsg.style.display = 'block';
+              passwordInput.value = '';
+            }
+          } catch (err) {
+            errorMsg.textContent = '⚠️ 网络连接失败，请稍后重试';
+            errorMsg.style.display = 'block';
+          }
+        });
+        passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') verifyBtn.click(); });
+      },
+
+      renderSender() {
+        Utils.stopAllTimers();
+        State.set('selectedFiles', []);
+        State.set('voiceBase64', null);
+        State.set('thumbnailCache', []);
+        const container = document.getElementById('mainContainer');
+        container.innerHTML = `
+          ${UI._buildThemeSelector()}
+          <h1>📸 制作和好胶囊</h1>
+          <p class="sub-title">定制一份专属于TA的回忆</p>
+          <input type="text" class="input-field" id="nicknameInput" placeholder="💝 输入TA的昵称（必填）" maxlength="20">
+          <div class="upload-area" id="uploadTrigger">
+            <span class="upload-icon">🖼️</span>
+            <div class="upload-text">点击选择照片（2～100张）</div>
+            <div class="upload-count" id="uploadCount">已选 0 张</div>
+            <p style="font-size:11px;color:var(--text-light);margin-top:6px;margin-bottom:0;">💡 选择 10～30 张最有代表性的瞬间，太多可能会让对方失去耐心哦</p>
+          </div>
+          <input type="file" id="fileInput" multiple accept="image/*" style="display:none;">
+          <div class="preview-grid" id="previewGrid"></div>
+          <div class="message-section">
+            <label class="message-label">💬 想对TA说的话（选填）</label>
+            <textarea class="message-textarea" id="messageInput" placeholder="对不起，那天是我太冲动了..." maxlength="200"></textarea>
+            <div class="char-count"><span id="charCount">0</span>/200</div>
+          </div>
+          <div class="voice-section">
+            <label class="message-label">🎙️ 语音留言（选填，最长60秒）</label>
+            <div style="font-size:11px;color:var(--text-light);margin-bottom:8px;">🎤 按住说话，说出你心里那句对不起</div>
+            <div class="voice-row">
+              <button class="voice-btn" id="voiceBtn">🎤 按住录音</button>
+              <span class="voice-duration" id="voiceDuration"></span>
+              <span id="voiceActions" style="display:none;"></span>
+            </div>
+            <div class="voice-status" id="voiceStatus"></div>
+            <canvas id="waveCanvas" width="200" height="40" style="display:none;margin-top:8px;border-radius:8px;background:rgba(255,209,220,0.2);"></canvas>
+            <div id="micErrorBox" style="display:none;background:rgba(255,235,235,0.9);border:1px solid rgba(220,50,50,0.2);border-radius:14px;padding:14px;margin-top:10px;font-size:13px;color:#c0392b;text-align:left;">
+              <b>无法访问麦克风</b>，你可以改用文字留言 ✍️<br>
+              <button id="retryMicBtn" style="margin-top:8px;background:var(--pink-deep);color:white;border:none;padding:7px 16px;border-radius:50px;font-size:12px;cursor:pointer;font-family:inherit;">重试授权</button>
+            </div>
+          </div>
+          <label class="message-label">🎵 选择背景音乐</label>
+          <div class="music-row">
+            <select class="select-field" id="musicSelect">
+              <option value="none">🔇 无音乐</option>
+              <option value="melody1" selected>🎹 舒缓钢琴 · 回忆</option>
+              <option value="melody2">🎻 温暖弦乐 · 守候</option>
+            </select>
+            <button class="preview-btn" id="previewMusicBtn">▶ 试听</button>
+          </div>
+          <label class="message-label">❓ 设置专属问题（选填）</label>
+          <input type="text" class="input-field" id="questionInput" placeholder="比如：我们第一次约会是在哪里？" maxlength="100">
+          <input type="text" class="input-field" id="answerInput" placeholder="答案（对方需答对才能看到原谅按钮）" maxlength="50">
+          <button class="btn" id="generateBtn" disabled>🔗 生成专属链接</button>
+          <div class="progress-wrap" id="progressWrap" style="display:none;">
+            <div style="font-size:11px;color:var(--text-light);margin-bottom:4px;" id="compressLabel">压缩进度</div>
+            <div class="progress-bar"><div class="progress-fill" id="compressFill"></div></div>
+            <div style="font-size:11px;color:var(--text-light);margin:8px 0 4px;" id="uploadLabel" style="display:none;">上传进度</div>
+            <div class="progress-bar" id="uploadBarWrap" style="display:none;"><div class="progress-fill" id="uploadFill"></div></div>
+            <div class="progress-label" id="progressLabel"></div>
+          </div>
+          <p class="note">💡 昵称和照片为必填，照片最多100张</p>
+        `;
+
+        UI._bindThemeSelector();
+        UI._initSenderLogic();
+      },
+
+      _initSenderLogic() {
+        const container = document.getElementById('mainContainer');
+        const fileInput = document.getElementById('fileInput');
+        const uploadTrigger = document.getElementById('uploadTrigger');
+        const previewGrid = document.getElementById('previewGrid');
+        const uploadCount = document.getElementById('uploadCount');
+        const generateBtn = document.getElementById('generateBtn');
+        const messageInput = document.getElementById('messageInput');
+        const charCount = document.getElementById('charCount');
+        const nicknameInput = document.getElementById('nicknameInput');
+        const musicSelect = document.getElementById('musicSelect');
+        const questionInput = document.getElementById('questionInput');
+        const answerInput = document.getElementById('answerInput');
+        const previewMusicBtn = document.getElementById('previewMusicBtn');
+        const progressWrap = document.getElementById('progressWrap');
+        const compressFill = document.getElementById('compressFill');
+        const uploadFill = document.getElementById('uploadFill');
+        const uploadBarWrap = document.getElementById('uploadBarWrap');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const progressLabel = document.getElementById('progressLabel');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const voiceStatus = document.getElementById('voiceStatus');
+        const voiceActions = document.getElementById('voiceActions');
+        const voiceDuration = document.getElementById('voiceDuration');
+        const waveCanvas = document.getElementById('waveCanvas');
+        const micErrorBox = document.getElementById('micErrorBox');
+        const retryMicBtn = document.getElementById('retryMicBtn');
+
+        function checkGenerateBtn() {
+          generateBtn.disabled = !(nicknameInput.value.trim() && State.get('selectedFiles').length >= 2);
+        }
+
+        nicknameInput.addEventListener('input', checkGenerateBtn);
+        messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
+
+        // --- Voice Recording ---
+        voiceBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRec(); }, { passive: false });
+        voiceBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRec(); }, { passive: false });
+        voiceBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); stopRec(); }, { passive: false });
+        voiceBtn.addEventListener('mousedown', (e) => { if (e.pointerType === 'touch') return; startRec(); });
+        voiceBtn.addEventListener('mouseup', (e) => { if (e.pointerType === 'touch') return; stopRec(); });
+        voiceBtn.addEventListener('mouseleave', () => { if (State.get('isRecording')) stopRec(); });
+
+        retryMicBtn.addEventListener('click', () => { micErrorBox.style.display = 'none'; startRec(); });
+
+        let analyserNode = null, waveAnimId = null;
+
+        function drawWave() {
+          if (!analyserNode) return;
+          const ctx2d = waveCanvas.getContext('2d');
+          const bufLen = analyserNode.frequencyBinCount;
+          const dataArr = new Uint8Array(bufLen);
+          function loop() {
+            waveAnimId = requestAnimationFrame(loop);
+            analyserNode.getByteTimeDomainData(dataArr);
+            ctx2d.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+            ctx2d.lineWidth = 2;
+            ctx2d.strokeStyle = '#ff6b9d';
+            ctx2d.beginPath();
+            const sliceWidth = waveCanvas.width / bufLen;
+            let x = 0;
+            for (let i = 0; i < bufLen; i++) {
+              const v = dataArr[i] / 128.0;
+              const y = v * waveCanvas.height / 2;
+              i === 0 ? ctx2d.moveTo(x, y) : ctx2d.lineTo(x, y);
+              x += sliceWidth;
+            }
+            ctx2d.lineTo(waveCanvas.width, waveCanvas.height / 2);
+            ctx2d.stroke();
+          }
+          loop();
+        }
+
+        function startRec() {
+          if (State.get('isRecording')) return;
+          if (!navigator.mediaDevices?.getUserMedia) {
+            micErrorBox.style.display = 'block'; return;
+          }
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            micErrorBox.style.display = 'none';
+            State.set('isRecording', true);
+            const mr = new MediaRecorder(stream);
+            State.set('mediaRecorder', mr);
+            State.set('audioChunks', []);
+            State.set('recSeconds', 0);
+            voiceDuration.textContent = '0s';
+
+            try { navigator.vibrate && navigator.vibrate(50); } catch(e) {}
+
+            try {
+              const audioCtxLocal = new (window.AudioContext || window.webkitAudioContext)();
+              const source = audioCtxLocal.createMediaStreamSource(stream);
+              analyserNode = audioCtxLocal.createAnalyser();
+              analyserNode.fftSize = 256;
+              source.connect(analyserNode);
+              waveCanvas.style.display = 'block';
+              drawWave();
+            } catch(e) {}
+
+            mr.ondataavailable = e => State.get('audioChunks').push(e.data);
+            mr.onstop = () => {
+              const rt = State.get('recTimerInterval');
+              if (rt) { clearInterval(rt); State.set('recTimerInterval', null); }
+              State.set('isRecording', false);
+              if (waveAnimId) { cancelAnimationFrame(waveAnimId); waveAnimId = null; }
+              waveCanvas.style.display = 'none';
+              analyserNode = null;
+
+              const secs = State.get('recSeconds');
+              if (secs < 1) {
+                voiceStatus.textContent = '⚠️ 录音时间太短，请重试';
+                voiceDuration.textContent = '';
+                return;
+              }
+
+              const blob = new Blob(State.get('audioChunks'), { type: 'audio/webm' });
+              if (blob.size > 5 * 1024 * 1024) {
+                voiceStatus.textContent = '⚠️ 录音文件过大，请缩短时长';
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result;
+                if (!result.startsWith('data:audio/webm')) {
+                  voiceStatus.textContent = '⚠️ 录音格式异常，请重试';
+                  return;
+                }
+                State.set('voiceBase64', result);
+                voiceStatus.textContent = `✅ 已录制 ${secs}秒，可回放或重录`;
+                voiceActions.innerHTML = `<button class="replay-btn" id="replayVoiceBtn">🔊 回放</button> <button class="replay-btn" id="rerecordBtn">🔄 重录</button>`;
+                document.getElementById('replayVoiceBtn').addEventListener('click', () => { new Audio(State.get('voiceBase64')).play(); });
+                document.getElementById('rerecordBtn').addEventListener('click', () => {
+                  State.set('voiceBase64', null);
+                  voiceActions.innerHTML = '';
+                  voiceStatus.textContent = '';
+                  voiceDuration.textContent = '';
+                  voiceBtn.style.display = 'inline-block';
+                  voiceActions.style.display = 'none';
+                });
+                voiceBtn.style.display = 'none';
+                voiceActions.style.display = 'inline';
+              };
+              reader.readAsDataURL(blob);
+            };
+
+            mr.start();
+            voiceBtn.classList.add('recording');
+            voiceBtn.textContent = '🎤 松开结束';
+            voiceStatus.textContent = '🔴 录音中...';
+
+            const rt = State.get('recTimerInterval');
+            if (rt) clearInterval(rt);
+            const newRt = setInterval(() => {
+              const s = State.get('recSeconds') + 1;
+              State.set('recSeconds', s);
+              voiceDuration.textContent = s + 's';
+              if (s >= 60) stopRec();
+            }, 1000);
+            State.set('recTimerInterval', newRt);
+
+          }).catch((err) => {
+            micErrorBox.style.display = 'block';
+          });
+        }
+
+        function stopRec() {
+          const rt = State.get('recTimerInterval');
+          if (rt) { clearInterval(rt); State.set('recTimerInterval', null); }
+          voiceBtn.classList.remove('recording');
+          voiceBtn.textContent = '🎤 按住录音';
+          const mr = State.get('mediaRecorder');
+          if (mr && mr.state === 'recording') {
+            mr.stop();
+            mr.stream.getTracks().forEach(t => t.stop());
+          } else {
+            State.set('isRecording', false);
+            if (!State.get('voiceBase64')) {
+              voiceStatus.textContent = '';
+              voiceDuration.textContent = '';
+            }
+          }
+        }
+
+        // --- Photo Upload ---
+        uploadTrigger.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', async (e) => {
+          const files = Array.from(e.target.files);
+          if (!files.length) return;
+          const merged = [...State.get('selectedFiles'), ...files].slice(0, 100);
+          State.set('selectedFiles', merged);
+
+          const cache = State.get('thumbnailCache');
+          const needed = merged.length - cache.length;
+          if (needed > 0) {
+            const newFiles = merged.slice(cache.length);
+            for (let i = 0; i < newFiles.length; i++) {
+              cache.push(await Utils.compressThumbnail(newFiles[i]));
+              if (i % 5 === 4) await new Promise(r => setTimeout(r, 0));
+            }
+          }
+          State.set('thumbnailCache', cache);
+
+          renderPreview();
+          checkGenerateBtn();
+          fileInput.value = '';
+        });
+
+        function renderPreview() {
+          const selectedFiles = State.get('selectedFiles');
+          const thumbnailCache = State.get('thumbnailCache');
+          uploadCount.textContent = '已选 ' + selectedFiles.length + ' 张';
+          previewGrid.innerHTML = '';
+          const visibleCount = Math.min(selectedFiles.length, 12);
+          for (let i = 0; i < visibleCount; i++) {
+            const item = document.createElement('div');
+            item.className = 'preview-item';
+            const thumbSrc = thumbnailCache[i] || '';
+            item.innerHTML = `<img src="${thumbSrc}" class="preview-thumb" loading="lazy"><button class="preview-delete" data-idx="${i}">✕</button>`;
+            item.querySelector('.preview-delete').addEventListener('click', () => {
+              const sf = State.get('selectedFiles'); sf.splice(i, 1); State.set('selectedFiles', sf);
+              const tc = State.get('thumbnailCache'); tc.splice(i, 1); State.set('thumbnailCache', tc);
+              renderPreview(); checkGenerateBtn();
+            });
+            previewGrid.appendChild(item);
+          }
+          if (selectedFiles.length > 12) {
+            const more = document.createElement('div');
+            more.style.cssText = 'grid-column:span 2;font-size:12px;color:var(--text-light);text-align:center;padding:8px;';
+            more.textContent = '···还有 ' + (selectedFiles.length - 12) + ' 张';
+            previewGrid.appendChild(more);
+          }
+        }
+
+        // --- Music Preview ---
+        function stopPreview() {
+          const pi = State.get('previewInterval');
+          if (pi) { clearInterval(pi); State.set('previewInterval', null); }
+          const ac = State.get('audioCtx');
+          if (ac) { try { ac.close(); } catch(e) {} State.set('audioCtx', null); }
+          previewMusicBtn.textContent = '▶ 试听';
+        }
+        previewMusicBtn.addEventListener('click', () => {
+          if (State.get('previewInterval')) { stopPreview(); return; }
+          const sel = musicSelect.value;
+          if (sel === 'none') { Utils.showToast('请先选择一首音乐'); return; }
+          try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            State.set('audioCtx', ac);
+            const notes = { melody1: [523,659,784,1047,784,659,523,440], melody2: [392,440,523,659,523,440,392,330] }[sel] || [];
+            let ni = 0;
+            function playNote() {
+              const ctx2 = State.get('audioCtx'); if (!ctx2) return;
+              const o = ctx2.createOscillator(), g = ctx2.createGain();
+              o.type = 'sine'; o.frequency.value = notes[ni % notes.length];
+              g.gain.setValueAtTime(0.18, ctx2.currentTime);
+              g.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime + 1.3);
+              o.connect(g); g.connect(ctx2.destination);
+              o.start(); o.stop(ctx2.currentTime + 1.3); ni++;
+            }
+            playNote(); previewMusicBtn.textContent = '⏹ 停止';
+            State.set('previewInterval', setInterval(playNote, 1900));
+            Utils.addTimer(setTimeout(() => { if (State.get('previewInterval')) stopPreview(); }, 6000));
+          } catch(e) { Utils.showToast('试听失败，但音乐仍会包含在胶囊中'); stopPreview(); }
+        });
+
+        // --- Generate Button ---
+        generateBtn.addEventListener('click', async () => {
+          const selectedFiles = State.get('selectedFiles');
+          if (selectedFiles.length < 2 || !nicknameInput.value.trim()) return;
+
+          generateBtn.disabled = true;
+          generateBtn.textContent = '⏳ 生成中...';
+          progressWrap.style.display = 'block';
+
+          const total = selectedFiles.length;
+          const imagesBase64 = [];
+          const batchSize = 5;
+          progressLabel.textContent = `正在压缩图片 (0/${total})...`;
+          compressFill.style.width = '0%';
+
+          for (let i = 0; i < total; i += batchSize) {
+            const batch = selectedFiles.slice(i, i + batchSize);
+            const results = await Promise.all(batch.map(f => Utils.compressImage(f)));
+            imagesBase64.push(...results);
+            const done = Math.min(i + batch.length, total);
+            compressFill.style.width = Math.round((done / total) * 100) + '%';
+            progressLabel.textContent = `正在压缩图片 (${done}/${total})...`;
+            await new Promise(r => setTimeout(r, 10));
+          }
+
+          uploadBarWrap.style.display = 'block';
+          uploadLabel.style.display = 'block';
+          uploadFill.style.width = '0%';
+          progressLabel.textContent = '正在创建胶囊...';
+
+          const metaData = {
+            nickname: nicknameInput.value.trim(),
+            message: messageInput.value.trim() || '',
+            voice: State.get('voiceBase64') || null,
+            music: musicSelect.value,
+            question: questionInput.value.trim() || '',
+            answer: answerInput.value.trim() || '',
+            viewed: false,
+            imageCount: imagesBase64.length
+          };
+
+          let newToken;
+          try {
+            newToken = await DB.createCapsule(metaData);
+          } catch(err) {
+            showUploadError(err.message || '未知错误');
+            return;
+          }
+
+          progressLabel.textContent = `正在上传图片 (0/${total})...`;
+
+          try {
+            await DB.uploadImages(newToken, imagesBase64, (done, t) => {
+              uploadFill.style.width = Math.round((done / t) * 100) + '%';
+              progressLabel.textContent = `正在上传图片 (${done}/${t})...`;
+            });
+          } catch(err) {
+            try { await _fbDb.ref('capsules/' + newToken).remove(); } catch(e) {}
+            showUploadError(err.message || '图片上传失败');
+            return;
+          }
+
+          uploadFill.style.width = '100%';
+          progressLabel.textContent = '✅ 上传完成！';
+
+          function showUploadError(msg) {
+            progressWrap.style.display = 'none';
+            generateBtn.disabled = false;
+            generateBtn.textContent = '🔗 生成专属链接';
+            const errDiv = document.createElement('div');
+            errDiv.style.cssText = 'background:rgba(255,235,235,0.9);border:1px solid rgba(220,50,50,0.2);border-radius:14px;padding:14px;margin-top:12px;font-size:13px;color:#c0392b;text-align:left;';
+            errDiv.innerHTML = `<b>❌ 上传失败：</b>${Utils.escapeHtml(msg)}<br><small>请检查：①Firebase规则 ②网络连接 ③尝试减少照片</small><br><button id="retryUploadBtn" style="margin-top:8px;background:var(--pink-deep);color:white;border:none;padding:7px 16px;border-radius:50px;font-size:12px;cursor:pointer;font-family:inherit;">🔄 重试</button>`;
+            container.appendChild(errDiv);
+            document.getElementById('retryUploadBtn').addEventListener('click', () => { errDiv.remove(); generateBtn.click(); });
+          }
+
+          let created = JSON.parse(localStorage.getItem('created_tokens') || '[]');
+          created.push(newToken);
+          Utils.safeSetLocalStorage('created_tokens', JSON.stringify(created));
+
+          const link = window.location.href.split('?')[0] + '?token=' + newToken;
+
+          container.innerHTML = `
+            <div style="font-size:52px;margin-bottom:14px;" class="capsule-drop">✅</div>
+            <h1 class="fade-in">胶囊生成成功！</h1>
+            <p class="sub-title fade-in-delay">专属链接已就绪，发给TA吧</p>
+            <div style="background:var(--pink-bg);border-radius:16px;padding:14px;word-break:break-all;font-size:11px;color:var(--pink-deep);margin:16px 0;border:1px solid var(--pink-pale);" class="fade-in-delay">${link}</div>
+            <button class="btn fade-in-delay" id="copyBtn">📋 一键复制链接</button>
+            <p id="viewStatus" style="color:var(--text-light);margin-top:16px;font-size:13px;">⏳ 等待TA打开...</p>
+            <p class="note">💡 对方点击"原谅"后，云端数据自动删除，但TA手机上将永久保留这份回忆</p>
+          `;
+
+          DB.watchViewed(newToken, () => {
+            const vs = document.getElementById('viewStatus');
+            if (vs) vs.textContent = '✅ TA已打开胶囊 💕';
+          });
+
+          document.getElementById('copyBtn').addEventListener('click', () => {
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(link).then(() => Utils.showToast('链接已复制！快去发给TA吧 💕'));
+            } else {
+              const ta = document.createElement('textarea');
+              ta.value = link; document.body.appendChild(ta); ta.select();
+              document.execCommand('copy'); document.body.removeChild(ta);
+              Utils.showToast('链接已复制！快去发给TA吧 💕');
+            }
+          });
+        });
+      },
+
+      renderReceiver(token) {
+        Utils.stopAllTimers();
+        const container = document.getElementById('mainContainer');
+        const createdTokens = JSON.parse(localStorage.getItem('created_tokens') || '[]');
+        if (createdTokens.includes(token)) { UI.buildSenderPreview(token); return; }
+
+        const localKey = 'capsule_local_' + token;
+        State.set('localKey', localKey);
+        const localData = localStorage.getItem(localKey);
+        if (localData) {
+          try { UI.buildMemorialUI(JSON.parse(localData)); return; } catch(e) {}
+        }
+
+        container.innerHTML = `
+          <div style="font-size:40px;margin:20px 0;">💊</div>
+          <h1>胶囊加载中</h1>
+          <div class="progress-bar" style="margin:20px 0;"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+          <p class="sub-title">请稍等片刻...</p>
+        `;
+
+        const pf = document.getElementById('progressFill');
+        let prog = 0;
+        const pt = setInterval(() => { prog = Math.min(prog + 12, 88); if (pf) pf.style.width = prog + '%'; }, 300);
+
+        DB.isForgiven(token).then(forgiven => {
+          if (forgiven) {
+            DB.getCapsule(token).then(data => {
+              clearInterval(pt);
+              if (data) {
+                Utils.safeSetLocalStorage(localKey, JSON.stringify(data));
+                if (pf) pf.style.width = '100%';
+                setTimeout(() => UI.buildMemorialUI(data), 300);
+              } else {
+                container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>';
+              }
+            }).catch(() => UI._showReceiverError(token, localKey, container));
+          } else {
+            DB.getCapsule(token).then(data => {
+              clearInterval(pt);
+              if (!data) { container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>'; return; }
+              if (!data.viewed) DB.markViewed(token).catch(() => {});
+              if (pf) pf.style.width = '100%';
+              setTimeout(() => UI.buildReceiverUI(data, token, localKey), 300);
+            }).catch(() => { clearInterval(pt); UI._showReceiverError(token, localKey, container); });
+          }
+        }).catch(() => { clearInterval(pt); UI._showReceiverError(token, localKey, container); });
+      },
+
+      _showReceiverError(token, localKey, container) {
+        container.innerHTML = `
+          <h1>😔</h1>
+          <p class="error-text">加载失败，请检查网络后重试</p>
+          <button class="btn" id="reloadBtn" style="margin-top:16px;">🔄 重新加载</button>
+          <div style="margin-top:20px;text-align:left;">
+            <label class="message-label" style="font-size:12px;">离线模式：粘贴胶囊数据JSON</label>
+            <textarea class="message-textarea" id="offlineJson" placeholder='{"nickname":"...","images":[...],...}' style="height:70px;font-size:11px;"></textarea>
+            <button class="btn" id="offlineBtn" style="margin-top:8px;">📦 离线查看</button>
+          </div>
+        `;
+        document.getElementById('reloadBtn').addEventListener('click', () => UI.renderReceiver(token));
+        document.getElementById('offlineBtn').addEventListener('click', () => {
+          try {
+            const data = JSON.parse(document.getElementById('offlineJson').value.trim());
+            if (data && data.images) {
+              if (!Array.isArray(data.images)) data.images = Object.values(data.images);
+              UI.buildMemorialUI(data);
+            } else { Utils.showToast('数据格式不正确', 'error'); }
+          } catch(e) { Utils.showToast('JSON 解析失败', 'error'); }
+        });
+      },
+
+      buildReceiverUI(data, token, localKey) {
+        const container = document.getElementById('mainContainer');
+        const { nickname, message, music, question, answer, images, voice } = data;
+        const hasMsg = message?.trim().length > 0;
+        const hasVoice = voice?.length > 0;
+        const hasQuiz = question?.trim().length > 0 && answer?.trim().length > 0;
+
+        container.innerHTML = `
+          <div class="nickname-bar capsule-drop">💝 专属于 ${Utils.escapeHtml(nickname)} 的胶囊</div>
+          <div id="contentArea"></div>
+        `;
+        const area = document.getElementById('contentArea');
+
+        area.innerHTML = `
+          <h1 class="fade-in">💊 你收到一颗和好胶囊</h1>
+          <div class="start-card fade-in-delay">
+            <span class="start-emoji">🕊️</span>
+            <div class="start-desc">${Utils.escapeHtml(nickname)}，这份回忆是专门为你准备的。<br>希望能和你重新开始。<br><br>找一个安静的地方，深呼吸，这些画面值得你静静地看一遍。</div>
+            <button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button>
+          </div>
+        `;
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+          playSlideshow(images, music, area, () => {
+            if (hasMsg) showLetterStep(message, area, afterLetter);
+            else afterLetter();
+          });
+        });
+
+        function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
+        function afterVoice() { if (hasQuiz) showQuiz(); else showCoupon(); }
+
+        function showQuiz() {
+          area.innerHTML = `
+            <h1>❓ 在原谅之前...</h1>
+            <p style="color:var(--text-mid);margin:16px 0;font-size:15px;line-height:1.7;">${Utils.escapeHtml(question)}</p>
+            <input type="text" class="quiz-input" id="quizAns" placeholder="请输入你的答案">
+            <p class="quiz-error" id="quizErr">这个答案好像不太对，但你知道那个答案就藏在你们共同的记忆里，再试试看 ❤️</p>
+            <button class="btn" id="quizBtn">✅ 确认答案</button>
+          `;
+          document.getElementById('quizBtn').addEventListener('click', () => {
+            if (document.getElementById('quizAns').value.trim() === answer) showCoupon();
+            else document.getElementById('quizErr').style.display = 'block';
+          });
+          document.getElementById('quizAns').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('quizBtn').click(); });
+        }
+
+        function showCoupon() {
+          area.innerHTML = `
+            <h1 class="fade-in">💊 和好胶囊</h1>
+            <div class="coupon-card fade-in-delay">
+              <div class="coupon-title">专 属 和 好 券</div>
+              <div class="coupon-desc">看完我们的回忆，<br>你愿意给彼此一个重新开始的机会吗？</div>
+              <button class="forgive-btn" id="forgiveBtn">💖 原谅TA，点击和好</button>
+            </div>
+          `;
+          document.getElementById('forgiveBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('forgiveBtn');
+            btn.textContent = '💕 和好成功...';
+            btn.disabled = true;
+            try {
+              Utils.safeSetLocalStorage(localKey, JSON.stringify(data));
+              await DB.markForgiven(token);
+              Utils.launchFireworks();
+              area.innerHTML = `
+                <div style="font-size:60px;margin:10px 0;" class="capsule-drop">🌸</div>
+                <div class="forgiven-msg fade-in">和好成功！<br>你们已经和好如初啦 💕</div>
+                <p style="color:var(--text-light);margin-top:14px;font-size:13px;" class="fade-in-delay">这份回忆将永远为你留存</p>
+                <button class="memorial-btn fade-in-delay2" id="memBtn">📽️ 再次播放回忆</button>
+              `;
+              document.getElementById('memBtn').addEventListener('click', () => UI.buildMemorialUI(data));
+            } catch(err) {
+              btn.disabled = false;
+              btn.textContent = '💖 原谅TA，点击和好';
+              Utils.showToast('网络开小差了，请稍后重试', 'error');
+            }
+          });
+        }
+      },
+
+      buildSenderPreview(token) {
+        const container = document.getElementById('mainContainer');
+        container.innerHTML = '<div style="font-size:36px;margin:20px 0;">🔍</div><h1>加载预览中...</h1>';
+        DB.getCapsule(token).then(data => {
+          if (!data) { container.innerHTML = '<h1>😔</h1><p class="error-text">链接已失效</p>'; return; }
+          const { nickname, message, music, images, voice, viewed } = data;
+          const hasMsg = message?.trim().length > 0;
+          const hasVoice = voice?.length > 0;
+
+          container.innerHTML = `
+            <div class="nickname-bar">💝 专属于 ${Utils.escapeHtml(nickname)} 的胶囊（预览）${viewed?' · ✅ 对方已读':' · ⏳ 未读'}</div>
+            <h1>📸 胶囊预览</h1>
+            <p class="sub-title">这是你制作的胶囊，对方将看到以下内容</p>
+            <div id="contentArea"></div>
+          `;
+          const area = document.getElementById('contentArea');
+          area.innerHTML = `
+            <div class="start-card">
+              <span class="start-emoji">🕊️</span>
+              <div class="start-desc">这份回忆是专门为你准备的。</div>
+              <button class="btn" id="pvStartBtn">📽️ 预览播放</button>
+            </div>
+          `;
+          document.getElementById('pvStartBtn').addEventListener('click', () => {
+            playSlideshow(images, music, area, () => {
+              if (hasMsg) showLetterStep(message, area, afterLetter);
+              else afterLetter();
+            });
+          });
+          function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
+          function afterVoice() {
+            area.innerHTML = '<h1>✅ 预览结束</h1><p style="color:var(--text-light);margin-top:12px;">这就是对方将看到的完整内容。真正的"原谅"按钮只会出现在TA的链接里。</p>';
+          }
+        }).catch(() => {
+          container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请刷新重试</p>';
+        });
+      },
+
+      buildMemorialUI(data) {
+        Utils.stopAllTimers();
+        const container = document.getElementById('mainContainer');
+        const { nickname, message, music, images, voice } = data;
+        const hasMsg = message?.trim().length > 0;
+        const hasVoice = voice?.length > 0;
+
+        container.innerHTML = `
+          <div class="nickname-bar capsule-drop">💝 专属于 ${Utils.escapeHtml(nickname)} 的和好纪念册</div>
+          <h1 class="fade-in">🌸 和好成功！</h1>
+          <p class="sub-title fade-in-delay">这份回忆将永远为你留存</p>
+          <div id="contentArea"></div>
+        `;
+        const area = document.getElementById('contentArea');
+        area.innerHTML = `
+          <div class="start-card fade-in-delay2">
+            <span class="start-emoji">🕊️</span>
+            <div class="start-desc">你们已经和好如初，<br>但这份回忆值得永远珍藏。</div>
+            <button class="memorial-btn" id="memStartBtn">📽️ 再次播放回忆</button>
+          </div>
+        `;
+        document.getElementById('memStartBtn').addEventListener('click', () => {
+          playSlideshow(images, music, area, () => {
+            if (hasMsg) showLetterStep(message, area, afterLetter);
+            else afterLetter();
+          });
+        });
+        function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
+        function afterVoice() {
+          area.innerHTML = '<div style="font-size:48px;margin:16px 0;">💕</div><p style="color:var(--text-light);">这些回忆，永远属于你们。</p>';
+        }
+      },
+
+      _buildThemeSelector() {
+        return `<div class="theme-selector" id="themeSelector"><div class="theme-dot pink active" data-theme="pink" title="粉色"></div><div class="theme-dot blue" data-theme="blue" title="蓝色"></div><div class="theme-dot dark" data-theme="dark" title="深色"></div><div class="theme-dot gold" data-theme="gold" title="金色"></div></div>`;
+      },
+
+      _bindThemeSelector() {
+        document.querySelectorAll('.theme-dot').forEach(dot => {
+          dot.addEventListener('click', () => {
+            document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
+            dot.classList.add('active');
+            applyTheme(dot.dataset.theme);
+          });
+        });
+      }
+    };
+
+    // ===================== Particles =====================
     (function initParticles() {
       const container = document.getElementById('bgParticles');
       const colors = ['#ff6b9d','#ffd1dc','#c44569','#ffb3c6','#ffffff'];
@@ -616,513 +1565,14 @@
       }
     })();
 
-    let currentTheme = 'pink';
     function applyTheme(theme) {
       document.body.className = theme === 'pink' ? '' : 'theme-' + theme;
-      currentTheme = theme;
+      State.set('currentTheme', theme);
     }
 
-    function launchFireworks() {
-      const canvas = document.getElementById('fireworkCanvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      const particles = [];
-      const colors = ['#ff6b9d','#ffd1dc','#ffb3c6','#ff4081','#fff','#ffd700'];
-      for (let burst = 0; burst < 6; burst++) {
-        const x = Math.random() * canvas.width;
-        const y = Math.random() * canvas.height * 0.6;
-        for (let i = 0; i < 60; i++) {
-          const angle = (Math.PI * 2 / 60) * i;
-          const speed = Math.random() * 5 + 2;
-          particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, alpha: 1, color: colors[Math.floor(Math.random()*colors.length)], size: Math.random()*3+1, delay: burst*200 });
-        }
-      }
-      let startTime = null;
-      function animate(ts) {
-        if (!startTime) startTime = ts;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        let alive = false;
-        for (const p of particles) {
-          if (ts - startTime < p.delay) { alive = true; continue; }
-          p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.alpha -= 0.015;
-          if (p.alpha > 0) { alive = true; ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.restore(); }
-        }
-        if (alive) requestAnimationFrame(animate);
-        else ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-      requestAnimationFrame(animate);
-    }
-
-    function escapeHtml(text) {
-      return String(text).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]);
-    }
-
-    function compressImage(file, maxWidth = 600, quality = 0.6) {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let w = img.width, h = img.height;
-            if (w > maxWidth) { h = (h * maxWidth) / w; w = maxWidth; }
-            canvas.width = w; canvas.height = h;
-            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            resolve(canvas.toDataURL('image/jpeg', quality));
-          };
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    function buildThemeSelector() {
-      return `<div class="theme-selector" id="themeSelector"><div class="theme-dot pink active" data-theme="pink" title="粉色"></div><div class="theme-dot blue" data-theme="blue" title="蓝色"></div><div class="theme-dot dark" data-theme="dark" title="深色"></div><div class="theme-dot gold" data-theme="gold" title="金色"></div></div>`;
-    }
-
-    function bindThemeSelector() {
-      document.querySelectorAll('.theme-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-          document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
-          dot.classList.add('active');
-          applyTheme(dot.dataset.theme);
-        });
-      });
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    if (token) { initReceiver(token); }
-    else { initPasswordGate(); }
-
-    function initPasswordGate() {
-      const container = document.getElementById('mainContainer');
-      container.innerHTML = `
-        <div class="lock-icon capsule-drop">🔐</div>
-        <h1 class="fade-in">验证你的胶囊</h1>
-        <p class="sub-title fade-in-delay">请输入购买后获得的专属密码</p>
-        <input type="password" class="password-input fade-in-delay" id="passwordInput" placeholder="请输入密码">
-        <p class="error-msg" id="errorMsg">❌ 密码错误，请重试</p>
-        <button class="btn fade-in-delay2" id="verifyBtn">🔓 验证进入</button>
-        <p class="note fade-in-delay2">💡 密码由卖家提供，每个密码仅限使用一次</p>
-      `;
-      document.getElementById('verifyBtn').addEventListener('click', () => {
-        const v = document.getElementById('passwordInput').value.trim();
-        if (v === CURRENT_PASSWORD) { initSender(); }
-        else { document.getElementById('errorMsg').style.display = 'block'; document.getElementById('passwordInput').value = ''; }
-      });
-      document.getElementById('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('verifyBtn').click(); });
-    }
-
-    function initSender() {
-      const container = document.getElementById('mainContainer');
-      container.innerHTML = `
-        ${buildThemeSelector()}
-        <h1>📸 制作和好胶囊</h1>
-        <p class="sub-title">定制一份专属于TA的回忆</p>
-        <input type="text" class="input-field" id="nicknameInput" placeholder="💝 输入TA的昵称（必填）" maxlength="20">
-        <div class="upload-area" id="uploadTrigger">
-          <span class="upload-icon">🖼️</span>
-          <div class="upload-text">点击选择照片（2～100张）</div>
-          <div class="upload-count" id="uploadCount">已选 0 张</div>
-        </div>
-        <input type="file" id="fileInput" multiple accept="image/*" style="display:none;">
-        <div class="preview-grid" id="previewGrid"></div>
-        <div class="message-section">
-          <label class="message-label">💬 想对TA说的话（选填）</label>
-          <textarea class="message-textarea" id="messageInput" placeholder="对不起，那天是我太冲动了..." maxlength="200"></textarea>
-          <div class="char-count"><span id="charCount">0</span>/200</div>
-        </div>
-        <div class="voice-section">
-          <label class="message-label">🎙️ 语音留言（选填，最长60秒）</label>
-          <div class="voice-row">
-            <button class="voice-btn" id="voiceBtn">🎤 按住录音</button>
-            <span class="voice-duration" id="voiceDuration"></span>
-            <span id="voiceActions" style="display:none;"></span>
-          </div>
-          <div class="voice-status" id="voiceStatus"></div>
-        </div>
-        <label class="message-label">🎵 选择背景音乐</label>
-        <div class="music-row">
-          <select class="select-field" id="musicSelect">
-            <option value="none">🔇 无音乐</option>
-            <option value="melody1" selected>🎹 舒缓钢琴 · 回忆</option>
-            <option value="melody2">🎻 温暖弦乐 · 守候</option>
-          </select>
-          <button class="preview-btn" id="previewMusicBtn">▶ 试听</button>
-        </div>
-        <label class="message-label">❓ 设置专属问题（选填）</label>
-        <input type="text" class="input-field" id="questionInput" placeholder="比如：我们第一次约会是在哪里？" maxlength="100">
-        <input type="text" class="input-field" id="answerInput" placeholder="答案（对方需答对才能看到原谅按钮）" maxlength="50">
-        <button class="btn" id="generateBtn" disabled>🔗 生成专属链接</button>
-        <div class="progress-wrap" id="progressWrap" style="display:none;">
-          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-          <div class="progress-label" id="progressLabel"></div>
-        </div>
-        <p class="note">💡 昵称和照片为必填，照片最多100张</p>
-      `;
-
-      bindThemeSelector();
-
-      const fileInput = document.getElementById('fileInput');
-      const uploadTrigger = document.getElementById('uploadTrigger');
-      const previewGrid = document.getElementById('previewGrid');
-      const uploadCount = document.getElementById('uploadCount');
-      const generateBtn = document.getElementById('generateBtn');
-      const messageInput = document.getElementById('messageInput');
-      const charCount = document.getElementById('charCount');
-      const nicknameInput = document.getElementById('nicknameInput');
-      const musicSelect = document.getElementById('musicSelect');
-      const questionInput = document.getElementById('questionInput');
-      const answerInput = document.getElementById('answerInput');
-      const previewMusicBtn = document.getElementById('previewMusicBtn');
-      const progressWrap = document.getElementById('progressWrap');
-      const progressFill = document.getElementById('progressFill');
-      const progressLabel = document.getElementById('progressLabel');
-      const voiceBtn = document.getElementById('voiceBtn');
-      const voiceStatus = document.getElementById('voiceStatus');
-      const voiceActions = document.getElementById('voiceActions');
-      const voiceDuration = document.getElementById('voiceDuration');
-
-      let selectedFiles = [];
-      let voiceBase64 = null;
-      let mediaRecorder = null;
-      let audioChunks = [];
-      let audioCtx = null;
-      let previewInterval = null;
-      let recTimerInterval = null;
-      let recSeconds = 0;
-      // ★ FIX 录音: 用标志位防止 mouseleave/touchcancel 在未录音时误触发，以及防止重复触发
-      let isRecording = false;
-
-      function checkGenerateBtn() {
-        generateBtn.disabled = !(nicknameInput.value.trim() && selectedFiles.length >= 2);
-      }
-
-      nicknameInput.addEventListener('input', checkGenerateBtn);
-      messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
-
-      // ★ FIX 录音: 只绑定 touchstart/touchend（移动端）和 mousedown/mouseup（桌面端），避免重复触发
-      // 移动端 touchstart 会同时触发 mousedown，用 preventDefault 阻止
-      voiceBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRec(); }, { passive: false });
-      voiceBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRec(); }, { passive: false });
-      voiceBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); stopRec(); }, { passive: false });
-      voiceBtn.addEventListener('mousedown', (e) => { if (e.pointerType === 'touch') return; startRec(); });
-      voiceBtn.addEventListener('mouseup', (e) => { if (e.pointerType === 'touch') return; stopRec(); });
-      // mouseleave 只在确实在录音时才停止，避免误触
-      voiceBtn.addEventListener('mouseleave', () => { if (isRecording) stopRec(); });
-
-      function startRec() {
-        if (isRecording) return; // 防止重复触发
-        if (!navigator.mediaDevices?.getUserMedia) { alert('浏览器不支持录音，请改用文字留言'); return; }
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-          isRecording = true;
-          mediaRecorder = new MediaRecorder(stream);
-          audioChunks = [];
-          recSeconds = 0;
-          voiceDuration.textContent = '0s';
-
-          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-          mediaRecorder.onstop = () => {
-            // ★ FIX: onstop 里确保计时器已停（双重保障）
-            clearInterval(recTimerInterval);
-            recTimerInterval = null;
-            isRecording = false;
-
-            const blob = new Blob(audioChunks, { type: 'audio/webm' });
-            const reader = new FileReader();
-            reader.onload = () => {
-              voiceBase64 = reader.result;
-              const durText = recSeconds + '秒';
-              voiceStatus.textContent = `✅ 已录制 ${durText}，可回放或重录`;
-              voiceActions.innerHTML = `<button class="replay-btn" id="replayVoiceBtn">🔊 回放</button> <button class="replay-btn" id="rerecordBtn">🔄 重录</button>`;
-              document.getElementById('replayVoiceBtn').addEventListener('click', () => { new Audio(voiceBase64).play(); });
-              document.getElementById('rerecordBtn').addEventListener('click', () => {
-                voiceBase64 = null;
-                voiceActions.innerHTML = '';
-                voiceStatus.textContent = '';
-                voiceDuration.textContent = '';
-                voiceBtn.style.display = 'inline-block';
-                voiceActions.style.display = 'none';
-              });
-              voiceBtn.style.display = 'none';
-              voiceActions.style.display = 'inline';
-            };
-            reader.readAsDataURL(blob);
-          };
-
-          mediaRecorder.start();
-          voiceBtn.classList.add('recording');
-          voiceBtn.textContent = '🎤 松开结束';
-          voiceStatus.textContent = '🔴 录音中...';
-
-          // ★ FIX: 先清除旧计时器再开新的
-          clearInterval(recTimerInterval);
-          recTimerInterval = setInterval(() => {
-            recSeconds++;
-            voiceDuration.textContent = recSeconds + 's';
-            if (recSeconds >= 60) stopRec();
-          }, 1000);
-
-        }).catch(() => alert('无法访问麦克风，请检查权限或改用文字留言'));
-      }
-
-      function stopRec() {
-        // ★ FIX: 立即清除计时器，不管后续状态如何
-        clearInterval(recTimerInterval);
-        recTimerInterval = null;
-
-        voiceBtn.classList.remove('recording');
-        voiceBtn.textContent = '🎤 按住录音';
-
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-          mediaRecorder.stream.getTracks().forEach(t => t.stop());
-        } else {
-          // 未真正开始录音就松开，重置状态
-          isRecording = false;
-          if (!voiceBase64) {
-            voiceStatus.textContent = '';
-            voiceDuration.textContent = '';
-          }
-        }
-      }
-
-      // 照片上传
-      uploadTrigger.addEventListener('click', () => fileInput.click());
-      fileInput.addEventListener('change', (e) => {
-        const files = Array.from(e.target.files);
-        if (!files.length) return;
-        selectedFiles = [...selectedFiles, ...files].slice(0, 100);
-        renderPreview();
-        checkGenerateBtn();
-        fileInput.value = ''; // 允许重复选同一文件
-      });
-
-      function renderPreview() {
-        uploadCount.textContent = '已选 ' + selectedFiles.length + ' 张';
-        previewGrid.innerHTML = '';
-        const count = Math.min(selectedFiles.length, 20);
-        for (let i = 0; i < count; i++) {
-          const reader = new FileReader();
-          const idx = i;
-          reader.onload = (ev) => {
-            const item = document.createElement('div');
-            item.className = 'preview-item';
-            item.innerHTML = `<img src="${ev.target.result}" class="preview-thumb"><button class="preview-delete" data-idx="${idx}">✕</button>`;
-            item.querySelector('.preview-delete').addEventListener('click', () => {
-              selectedFiles.splice(idx, 1); renderPreview(); checkGenerateBtn();
-            });
-            previewGrid.appendChild(item);
-          };
-          reader.readAsDataURL(selectedFiles[i]);
-        }
-        if (selectedFiles.length > 20) {
-          const more = document.createElement('div');
-          more.style.cssText = 'grid-column:span 2;font-size:12px;color:var(--text-light);text-align:center;padding:8px;';
-          more.textContent = '···还有 ' + (selectedFiles.length - 20) + ' 张';
-          previewGrid.appendChild(more);
-        }
-      }
-
-      function stopPreview() {
-        if (previewInterval) { clearInterval(previewInterval); previewInterval = null; }
-        if (audioCtx) { audioCtx.close(); audioCtx = null; }
-        previewMusicBtn.textContent = '▶ 试听';
-      }
-      previewMusicBtn.addEventListener('click', () => {
-        if (previewInterval) { stopPreview(); return; }
-        const sel = musicSelect.value;
-        if (sel === 'none') { alert('请先选择一首音乐'); return; }
-        try {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const notes = { melody1: [523,659,784,1047,784,659,523,440], melody2: [392,440,523,659,523,440,392,330] }[sel] || [];
-          let ni = 0;
-          function playNote() {
-            if (!audioCtx) return;
-            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-            o.type = 'sine'; o.frequency.value = notes[ni % notes.length];
-            g.gain.setValueAtTime(0.18, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.3);
-            o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + 1.3); ni++;
-          }
-          playNote(); previewMusicBtn.textContent = '⏹ 停止';
-          previewInterval = setInterval(playNote, 1900);
-          setTimeout(() => { if (previewInterval) stopPreview(); }, 6000);
-        } catch(e) { alert('试听失败，但音乐仍会包含在胶囊中'); stopPreview(); }
-      });
-
-      // ★ FIX 上传: 分批写入图片，避免单次写入超大数据导致超时
-      generateBtn.addEventListener('click', async () => {
-        if (selectedFiles.length < 2 || !nicknameInput.value.trim()) return;
-        generateBtn.disabled = true;
-        generateBtn.textContent = '⏳ 生成中...';
-        progressWrap.style.display = 'block';
-
-        const total = selectedFiles.length;
-        const imagesBase64 = [];
-        const batchSize = 5; // 每批处理5张，减小单批数据量
-        progressLabel.textContent = `正在压缩图片 (0/${total})...`;
-
-        // 第一步：本地压缩图片
-        for (let i = 0; i < total; i += batchSize) {
-          const batch = selectedFiles.slice(i, i + batchSize);
-          const results = await Promise.all(batch.map(f => compressImage(f)));
-          imagesBase64.push(...results);
-          const done = Math.min(i + batch.length, total);
-          progressFill.style.width = Math.round((done / total) * 60) + '%';
-          progressLabel.textContent = `正在压缩图片 (${done}/${total})...`;
-          // 让浏览器喘口气，避免 UI 卡死
-          await new Promise(r => setTimeout(r, 10));
-        }
-
-        progressFill.style.width = '65%';
-        progressLabel.textContent = '正在创建胶囊...';
-
-        // 第二步：先写元数据（不含图片），获取 token
-        const metaData = {
-          nickname: nicknameInput.value.trim(),
-          message: messageInput.value.trim() || '',
-          voice: voiceBase64 || null,
-          music: musicSelect.value,
-          question: questionInput.value.trim() || '',
-          answer: answerInput.value.trim() || '',
-          viewed: false,
-          imageCount: imagesBase64.length
-        };
-
-        let newToken;
-        try {
-          const newRef = db.ref('capsules').push();
-          newToken = newRef.key;
-          await newRef.set(metaData);
-        } catch(err) {
-          showUploadError(err.message || '未知错误');
-          return;
-        }
-
-        progressFill.style.width = '70%';
-        progressLabel.textContent = `正在上传图片 (0/${total})...`;
-
-        // 第三步：分批上传图片，每批 5 张
-        const uploadBatchSize = 5;
-        try {
-          for (let i = 0; i < imagesBase64.length; i += uploadBatchSize) {
-            const batch = imagesBase64.slice(i, i + uploadBatchSize);
-            const batchObj = {};
-            batch.forEach((img, j) => { batchObj[i + j] = img; });
-            await db.ref('capsules/' + newToken + '/images').update(batchObj);
-            const done = Math.min(i + uploadBatchSize, total);
-            progressFill.style.width = (70 + Math.round((done / total) * 28)) + '%';
-            progressLabel.textContent = `正在上传图片 (${done}/${total})...`;
-          }
-        } catch(err) {
-          // 图片上传失败时清理元数据
-          await db.ref('capsules/' + newToken).remove().catch(() => {});
-          showUploadError(err.message || '图片上传失败');
-          return;
-        }
-
-        progressFill.style.width = '100%';
-        progressLabel.textContent = '✅ 上传完成！';
-
-        function showUploadError(msg) {
-          progressWrap.style.display = 'none';
-          generateBtn.disabled = false;
-          generateBtn.textContent = '🔗 生成专属链接';
-          alert('❌ 上传失败：' + msg + '\n\n请检查：\n1. Firebase 安全规则是否已设为允许读写\n2. 网络连接是否正常\n3. 尝试减少照片数量或压缩质量');
-        }
-
-        let created = JSON.parse(localStorage.getItem('created_tokens') || '[]');
-        created.push(newToken);
-        localStorage.setItem('created_tokens', JSON.stringify(created));
-
-        const link = window.location.href.split('?')[0] + '?token=' + newToken;
-
-        container.innerHTML = `
-          <div style="font-size:52px;margin-bottom:14px;" class="capsule-drop">✅</div>
-          <h1 class="fade-in">胶囊生成成功！</h1>
-          <p class="sub-title fade-in-delay">专属链接已就绪，发给TA吧</p>
-          <div style="background:var(--pink-bg);border-radius:16px;padding:14px;word-break:break-all;font-size:11px;color:var(--pink-deep);margin:16px 0;border:1px solid var(--pink-pale);" class="fade-in-delay">${link}</div>
-          <button class="btn fade-in-delay" id="copyBtn">📋 一键复制链接</button>
-          <p id="viewStatus" style="color:var(--text-light);margin-top:16px;font-size:13px;">⏳ 等待TA打开...</p>
-          <p class="note">💡 对方点击"原谅"后，云端数据自动删除，但TA手机上将永久保留这份回忆</p>
-        `;
-
-        db.ref('capsules/' + newToken + '/viewed').on('value', snap => {
-          if (snap.val() === true) { const vs = document.getElementById('viewStatus'); if (vs) vs.textContent = '✅ TA已打开胶囊 💕'; }
-        });
-
-        document.getElementById('copyBtn').addEventListener('click', () => {
-          if (navigator.clipboard) {
-            navigator.clipboard.writeText(link).then(() => alert('链接已复制！快去发给TA吧 💕'));
-          } else {
-            const ta = document.createElement('textarea');
-            ta.value = link; document.body.appendChild(ta); ta.select();
-            document.execCommand('copy'); document.body.removeChild(ta);
-            alert('链接已复制！快去发给TA吧 💕');
-          }
-        });
-      });
-    }
-
-    // ===== 接收方入口 =====
-    function initReceiver(token) {
-      const container = document.getElementById('mainContainer');
-      const createdTokens = JSON.parse(localStorage.getItem('created_tokens') || '[]');
-      if (createdTokens.includes(token)) { buildSenderPreview(token); return; }
-
-      const localKey = 'capsule_local_' + token;
-      const localData = localStorage.getItem(localKey);
-      if (localData) { buildMemorialUI(JSON.parse(localData)); return; }
-
-      container.innerHTML = `
-        <div style="font-size:40px;margin:20px 0;">💊</div>
-        <h1>胶囊加载中</h1>
-        <div class="progress-bar" style="margin:20px 0;"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
-        <p class="sub-title">请稍等片刻...</p>
-      `;
-
-      const pf = document.getElementById('progressFill');
-      let prog = 0;
-      const pt = setInterval(() => { prog = Math.min(prog + 12, 88); if (pf) pf.style.width = prog + '%'; }, 300);
-
-      db.ref('forgiven/' + token).once('value').then(snap => {
-        if (snap.exists()) {
-          db.ref('capsules/' + token).once('value').then(cs => {
-            clearInterval(pt);
-            const data = cs.val();
-            if (data) {
-              // ★ FIX: 接收端加载时，把 images 对象（分批写入变成了 object）转成数组
-              if (data.images && !Array.isArray(data.images)) {
-                data.images = Object.keys(data.images).sort((a,b) => Number(a)-Number(b)).map(k => data.images[k]);
-              }
-              localStorage.setItem(localKey, JSON.stringify(data));
-              if (pf) pf.style.width = '100%';
-              setTimeout(() => buildMemorialUI(data), 300);
-            } else { container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>'; }
-          });
-        } else {
-          db.ref('capsules/' + token).once('value').then(cs => {
-            clearInterval(pt);
-            const data = cs.val();
-            if (!data) { container.innerHTML = '<h1>😔</h1><p class="error-text">这个链接已经失效了</p>'; return; }
-            // ★ FIX: 同上，兼容分批写入的 images 格式
-            if (data.images && !Array.isArray(data.images)) {
-              data.images = Object.keys(data.images).sort((a,b) => Number(a)-Number(b)).map(k => data.images[k]);
-            }
-            if (!data.viewed) db.ref('capsules/' + token + '/viewed').set(true);
-            if (pf) pf.style.width = '100%';
-            setTimeout(() => buildReceiverUI(data, token, localKey), 300);
-          });
-        }
-      }).catch(() => { clearInterval(pt); container.innerHTML = '<h1>😔</h1><p class="error-text">加载失败，请检查网络后刷新重试</p>'; });
-    }
-
+    // ===================== Shared Step Renderers =====================
     function showLetterStep(message, area, cb) {
-      const formattedMessage = escapeHtml(message).replace(/\n/g, '<br>');
+      const formattedMessage = Utils.escapeHtml(message).replace(/\n/g, '<br>');
       area.innerHTML = `
         <h1 class="fade-in">💌 TA给你写了一封信</h1>
         <p class="sub-title fade-in-delay">点一点信封，拆开看看吧</p>
@@ -1138,7 +1588,7 @@
             </div>
             <div class="envelope-flap" id="envFlap"></div>
             <div class="envelope-seal" id="envSeal"><div class="seal-inner">💝</div></div>
-            <p class="envelope-hint" id="envHint">点击拆开信封</p>
+            <p class="envelope-hint" id="envHint">点击拆开这封手写信 ✉️</p>
           </div>
         </div>
         <div id="letterAction" style="opacity:0;transition:opacity 0.5s;margin-top:10px;text-align:center;"></div>
@@ -1150,6 +1600,9 @@
       const seal = document.getElementById('envSeal');
       const actionArea = document.getElementById('letterAction');
 
+      envBox.style.willChange = 'transform';
+      flap.style.willChange = 'transform';
+
       envBox.addEventListener('click', () => {
         if (envBox.classList.contains('is-open')) return;
         envBox.classList.add('is-open');
@@ -1157,6 +1610,8 @@
         flap.classList.add('open');
         setTimeout(() => { paper.classList.add('show'); }, 400);
         setTimeout(() => {
+          envBox.style.willChange = 'auto';
+          flap.style.willChange = 'auto';
           const btn = document.createElement('button');
           btn.className = 'btn';
           btn.innerHTML = '收下这封信，继续 →';
@@ -1200,33 +1655,34 @@
     }
 
     function playSlideshow(images, music, area, cb) {
-      let audioCtx = null, musicOn = false;
+      let slideshowAudioCtx = null, musicOn = false;
 
       function startMusic() {
         if (music === 'none' || musicOn) return;
         try {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          slideshowAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
           const notes = {
             melody1: [523,659,784,1047,784,659,523,440,523,659,784,659,523,440,392,440],
             melody2: [392,440,523,392,440,523,659,523,440,392,330,392,440,523,440,392]
           }[music] || [];
           let ni = 0;
           function p() {
-            if (!audioCtx) return;
-            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            if (!slideshowAudioCtx) return;
+            const o = slideshowAudioCtx.createOscillator(), g = slideshowAudioCtx.createGain();
             o.type = 'sine'; o.frequency.value = notes[ni%notes.length];
-            g.gain.setValueAtTime(0.12, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+1.8);
-            o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime+1.8); ni++;
+            g.gain.setValueAtTime(0.12, slideshowAudioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, slideshowAudioCtx.currentTime+1.8);
+            o.connect(g); g.connect(slideshowAudioCtx.destination);
+            o.start(); o.stop(slideshowAudioCtx.currentTime+1.8); ni++;
           }
           p(); musicOn = true;
-          window._musicInterval = setInterval(p, 2400);
+          const id = setInterval(p, 2400);
+          Utils.addTimer(id);
         } catch(e) {}
       }
       function stopMusic() {
-        if (window._musicInterval) clearInterval(window._musicInterval);
-        if (audioCtx) audioCtx.close(); musicOn = false;
+        if (slideshowAudioCtx) { try { slideshowAudioCtx.close(); } catch(e) {} slideshowAudioCtx = null; }
+        musicOn = false;
       }
 
       const phrases = ['这些画面，你还记得吗...','每一个瞬间，都是真的...','回忆不会说谎...','那时候的我们，多好啊...','TA一直记得...','珍惜每一次在一起...'];
@@ -1250,165 +1706,24 @@
           imgs[cur].classList.add('active');
           counter.textContent = (cur+1) + ' / ' + images.length;
           if (phrases[cur-1]) phrase.textContent = phrases[cur-1];
-          window._slideTimer = setTimeout(next, 3500);
+          Utils.addTimer(setTimeout(next, 3500));
         } else {
           phrase.textContent = '回忆播完了，但那些美好从未离开 ✨';
           counter.textContent = '';
           stopMusic();
-          if (cb) setTimeout(cb, 900);
+          if (cb) Utils.addTimer(setTimeout(cb, 900));
         }
       }
-      window._slideTimer = setTimeout(next, 3500);
+      Utils.addTimer(setTimeout(next, 3500));
     }
 
-    function buildReceiverUI(data, token, localKey) {
-      const container = document.getElementById('mainContainer');
-      const { nickname, message, music, question, answer, images, voice } = data;
-      const hasMsg = message?.trim().length > 0;
-      const hasVoice = voice?.length > 0;
-      const hasQuiz = question?.trim().length > 0 && answer?.trim().length > 0;
+    // ===================== Entry Point =====================
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) { UI.renderReceiver(token); }
+    else { UI.renderPasswordGate(); }
 
-      container.innerHTML = `
-        <div class="nickname-bar capsule-drop">💝 专属于 ${escapeHtml(nickname)} 的胶囊</div>
-        <div id="contentArea"></div>
-      `;
-      const area = document.getElementById('contentArea');
-
-      area.innerHTML = `
-        <h1 class="fade-in">💊 你收到一颗和好胶囊</h1>
-        <div class="start-card fade-in-delay">
-          <span class="start-emoji">🕊️</span>
-          <div class="start-desc">${escapeHtml(nickname)}，这份回忆是专门为你准备的。<br>希望能和你重新开始。<br><br>准备好了吗？</div>
-          <button class="btn" id="startBtn">📽️ 打开胶囊，看看回忆</button>
-        </div>
-      `;
-
-      document.getElementById('startBtn').addEventListener('click', () => {
-        playSlideshow(images, music, area, () => {
-          if (hasMsg) showLetterStep(message, area, afterLetter);
-          else afterLetter();
-        });
-      });
-
-      function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
-      function afterVoice() { if (hasQuiz) showQuiz(); else showCoupon(); }
-
-      function showQuiz() {
-        area.innerHTML = `
-          <h1>❓ 在原谅之前...</h1>
-          <p style="color:var(--text-mid);margin:16px 0;font-size:15px;line-height:1.7;">${escapeHtml(question)}</p>
-          <input type="text" class="quiz-input" id="quizAns" placeholder="请输入你的答案">
-          <p class="quiz-error" id="quizErr">答案不对哦 💭 再想想</p>
-          <button class="btn" id="quizBtn">✅ 确认答案</button>
-        `;
-        document.getElementById('quizBtn').addEventListener('click', () => {
-          if (document.getElementById('quizAns').value.trim() === answer) showCoupon();
-          else document.getElementById('quizErr').style.display = 'block';
-        });
-        document.getElementById('quizAns').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('quizBtn').click(); });
-      }
-
-      function showCoupon() {
-        area.innerHTML = `
-          <h1 class="fade-in">💊 和好胶囊</h1>
-          <div class="coupon-card fade-in-delay">
-            <div class="coupon-title">专 属 和 好 券</div>
-            <div class="coupon-desc">看完我们的回忆，<br>你愿意给彼此一个重新开始的机会吗？</div>
-            <button class="forgive-btn" id="forgiveBtn">💖 原谅TA，点击和好</button>
-          </div>
-        `;
-        document.getElementById('forgiveBtn').addEventListener('click', async () => {
-          document.getElementById('forgiveBtn').textContent = '💕 和好成功...';
-          document.getElementById('forgiveBtn').disabled = true;
-          localStorage.setItem(localKey, JSON.stringify(data));
-          await db.ref('forgiven/' + token).set(true);
-          await db.ref('capsules/' + token).remove();
-          launchFireworks();
-          area.innerHTML = `
-            <div style="font-size:60px;margin:10px 0;" class="capsule-drop">🌸</div>
-            <div class="forgiven-msg fade-in">和好成功！<br>你们已经和好如初啦 💕</div>
-            <p style="color:var(--text-light);margin-top:14px;font-size:13px;" class="fade-in-delay">这份回忆将永远为你留存</p>
-            <button class="memorial-btn fade-in-delay2" id="memBtn">📽️ 再次播放回忆</button>
-          `;
-          document.getElementById('memBtn').addEventListener('click', () => buildMemorialUI(data));
-        });
-      }
-    }
-
-    function buildSenderPreview(token) {
-      const container = document.getElementById('mainContainer');
-      container.innerHTML = '<div style="font-size:36px;margin:20px 0;">🔍</div><h1>加载预览中...</h1>';
-      db.ref('capsules/' + token).once('value').then(snap => {
-        const data = snap.val();
-        if (!data) { container.innerHTML = '<h1>😔</h1><p class="error-text">链接已失效</p>'; return; }
-        // ★ FIX: 预览模式同样兼容分批写入的 images 格式
-        if (data.images && !Array.isArray(data.images)) {
-          data.images = Object.keys(data.images).sort((a,b) => Number(a)-Number(b)).map(k => data.images[k]);
-        }
-        const { nickname, message, music, images, voice, viewed } = data;
-        const hasMsg = message?.trim().length > 0;
-        const hasVoice = voice?.length > 0;
-
-        container.innerHTML = `
-          <div class="nickname-bar">💝 专属于 ${escapeHtml(nickname)} 的胶囊（预览）${viewed?' · ✅ 对方已读':' · ⏳ 未读'}</div>
-          <h1>📸 胶囊预览</h1>
-          <p class="sub-title">这是你制作的胶囊，对方将看到以下内容</p>
-          <div id="contentArea"></div>
-        `;
-        const area = document.getElementById('contentArea');
-        area.innerHTML = `
-          <div class="start-card">
-            <span class="start-emoji">🕊️</span>
-            <div class="start-desc">这份回忆是专门为你准备的。</div>
-            <button class="btn" id="pvStartBtn">📽️ 预览播放</button>
-          </div>
-        `;
-        document.getElementById('pvStartBtn').addEventListener('click', () => {
-          playSlideshow(images, music, area, () => {
-            if (hasMsg) showLetterStep(message, area, afterLetter);
-            else afterLetter();
-          });
-        });
-        function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
-        function afterVoice() {
-          area.innerHTML = '<h1>✅ 预览结束</h1><p style="color:var(--text-light);margin-top:12px;">这就是对方将看到的完整内容。真正的"原谅"按钮只会出现在TA的链接里。</p>';
-        }
-      });
-    }
-
-    function buildMemorialUI(data) {
-      const container = document.getElementById('mainContainer');
-      const { nickname, message, music, images, voice } = data;
-      const hasMsg = message?.trim().length > 0;
-      const hasVoice = voice?.length > 0;
-
-      container.innerHTML = `
-        <div class="nickname-bar capsule-drop">💝 专属于 ${escapeHtml(nickname)} 的和好纪念册</div>
-        <h1 class="fade-in">🌸 和好成功！</h1>
-        <p class="sub-title fade-in-delay">这份回忆将永远为你留存</p>
-        <div id="contentArea"></div>
-      `;
-      const area = document.getElementById('contentArea');
-      area.innerHTML = `
-        <div class="start-card fade-in-delay2">
-          <span class="start-emoji">🕊️</span>
-          <div class="start-desc">你们已经和好如初，<br>但这份回忆值得永远珍藏。</div>
-          <button class="memorial-btn" id="memStartBtn">📽️ 再次播放回忆</button>
-        </div>
-      `;
-      document.getElementById('memStartBtn').addEventListener('click', () => {
-        playSlideshow(images, music, area, () => {
-          if (hasMsg) showLetterStep(message, area, afterLetter);
-          else afterLetter();
-        });
-      });
-      function afterLetter() { if (hasVoice) showVoiceStep(voice, area, afterVoice); else afterVoice(); }
-      function afterVoice() {
-        area.innerHTML = '<div style="font-size:48px;margin:16px 0;">💕</div><p style="color:var(--text-light);">这些回忆，永远属于你们。</p>';
-      }
-    }
-
-    window.addEventListener('beforeunload', () => { if (window._slideTimer) clearTimeout(window._slideTimer); });
+    window.addEventListener('beforeunload', () => { Utils.stopAllTimers(); });
   </script>
 </body>
 </html>
