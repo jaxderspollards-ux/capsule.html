@@ -1003,8 +1003,9 @@
         messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
 
         // --- Voice Recording ---
+        // touchstart / mousedown 均不再检查 micReady —— 懒授权在 startRec 内部处理
         voiceBtn.addEventListener('touchstart', (e) => {
-          if (!State.get('micReady')) return;
+          if (voiceBtn.disabled) return;
           e.preventDefault();
           State.set('isTouchRecording', true);
           startRec();
@@ -1022,7 +1023,7 @@
           stopRec();
         }, { passive: false });
         voiceBtn.addEventListener('mousedown', (e) => {
-          if (!State.get('micReady') || e.pointerType === 'touch' || State.get('isTouchRecording')) return;
+          if (voiceBtn.disabled || e.pointerType === 'touch' || State.get('isTouchRecording')) return;
           startRec();
         });
         voiceBtn.addEventListener('mouseup', (e) => {
@@ -1033,19 +1034,12 @@
           if (State.get('isRecording') && !State.get('isTouchRecording')) stopRec();
         });
 
-        retryMicBtn.addEventListener('click', async () => {
+        retryMicBtn.addEventListener('click', () => {
+          // 重试直接走 startRec —— 在用户手势内，Chrome 会重新弹授权框
           micErrorBox.style.display = 'none';
-          // 重试时也走预检流程，防止再次被 iOS 拦截
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(t => t.stop());
-            State.set('micReady', true);
-            voiceBtn.disabled = false;
-            voiceBtn.textContent = '🎤 按住录音';
-            voiceBtn.style.cssText = '';
-          } catch(err) {
-            micErrorBox.style.display = 'block';
-          }
+          micErrorBox.innerHTML = '<b>无法访问麦克风</b>，你可以改用文字留言 ✍️<br><button id="retryMicBtn" style="margin-top:8px;background:var(--pink-deep);color:white;border:none;padding:7px 16px;border-radius:50px;font-size:12px;cursor:pointer;font-family:inherit;">重试授权</button>';
+          voiceStatus.textContent = '';
+          startRec();
         });
 
         let analyserNode = null, waveAnimId = null;
@@ -1076,113 +1070,144 @@
           loop();
         }
 
-        function startRec() {
-          if (State.get('isRecording') || !State.get('micReady')) return;
+        // ── 内部函数：拿到 stream 后真正开始录音（复用于首次和后续）──
+        function _doRecord(stream) {
+          micErrorBox.style.display = 'none';
+          State.set('isRecording', true);
+          State.set('audioChunks', []);
+          State.set('recSeconds', 0);
+          voiceDuration.textContent = '0s';
 
-          // 权限已预检通过，直接发起 stream（无弹窗拦截）
-          navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-            micErrorBox.style.display = 'none';
-            State.set('isRecording', true);
-            State.set('audioChunks', []);
-            State.set('recSeconds', 0);
-            voiceDuration.textContent = '0s';
+          try { navigator.vibrate && navigator.vibrate(50); } catch(e) {}
 
-            try { navigator.vibrate && navigator.vibrate(50); } catch(e) {}
+          // 波形可视化
+          try {
+            const audioCtxLocal = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtxLocal.createMediaStreamSource(stream);
+            analyserNode = audioCtxLocal.createAnalyser();
+            analyserNode.fftSize = 256;
+            source.connect(analyserNode);
+            waveCanvas.style.display = 'block';
+            drawWave();
+          } catch(e) {}
 
-            // 波形可视化
-            try {
-              const audioCtxLocal = new (window.AudioContext || window.webkitAudioContext)();
-              const source = audioCtxLocal.createMediaStreamSource(stream);
-              analyserNode = audioCtxLocal.createAnalyser();
-              analyserNode.fftSize = 256;
-              source.connect(analyserNode);
-              waveCanvas.style.display = 'block';
-              drawWave();
-            } catch(e) {}
-
-            // 自适应 MIME：优先 webm，iOS 降级 mp4
-            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-              ? 'audio/webm;codecs=opus'
+          // 自适应 MIME：优先 webm/opus（Chrome/Firefox），降级 mp4（Safari/iOS）
+          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus'
+            : MediaRecorder.isTypeSupported('audio/webm')
+              ? 'audio/webm'
               : MediaRecorder.isTypeSupported('audio/mp4')
                 ? 'audio/mp4'
                 : '';
-            const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-            State.set('mediaRecorder', mr);
+          const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+          State.set('mediaRecorder', mr);
 
-            mr.ondataavailable = e => { if (e.data && e.data.size > 0) State.get('audioChunks').push(e.data); };
-            mr.onstop = () => {
-              const rt = State.get('recTimerInterval');
-              if (rt) { clearInterval(rt); State.set('recTimerInterval', null); }
-              State.set('isRecording', false);
-              if (waveAnimId) { cancelAnimationFrame(waveAnimId); waveAnimId = null; }
-              waveCanvas.style.display = 'none';
-              analyserNode = null;
-
-              const secs = State.get('recSeconds');
-              if (secs < 1) {
-                voiceStatus.textContent = '⚠️ 录音时间太短，请重试';
-                voiceDuration.textContent = '';
-                return;
-              }
-
-              const chunks = State.get('audioChunks');
-              if (!chunks.length) {
-                voiceStatus.textContent = '⚠️ 未收到录音数据，请重试';
-                return;
-              }
-
-              const actualMime = chunks[0].type || mimeType || 'audio/webm';
-              const blob = new Blob(chunks, { type: actualMime });
-              if (blob.size > 5 * 1024 * 1024) {
-                voiceStatus.textContent = '⚠️ 录音文件过大，请缩短时长';
-                return;
-              }
-              const reader = new FileReader();
-              reader.onload = () => {
-                const result = reader.result;
-                // 兼容所有合法音频格式（webm / mp4 / ogg 等）
-                if (!result.startsWith('data:audio/')) {
-                  voiceStatus.textContent = '⚠️ 录音格式异常，请重试';
-                  return;
-                }
-                State.set('voiceBase64', result);
-                voiceStatus.textContent = `✅ 已录制 ${secs}秒，可回放或重录`;
-                voiceActions.innerHTML = `<button class="replay-btn" id="replayVoiceBtn">🔊 回放</button> <button class="replay-btn" id="rerecordBtn">🔄 重录</button>`;
-                document.getElementById('replayVoiceBtn').addEventListener('click', () => { new Audio(State.get('voiceBase64')).play(); });
-                document.getElementById('rerecordBtn').addEventListener('click', () => {
-                  State.set('voiceBase64', null);
-                  voiceActions.innerHTML = '';
-                  voiceStatus.textContent = '';
-                  voiceDuration.textContent = '';
-                  voiceBtn.style.display = 'inline-block';
-                  voiceActions.style.display = 'none';
-                });
-                voiceBtn.style.display = 'none';
-                voiceActions.style.display = 'inline';
-              };
-              reader.readAsDataURL(blob);
-            };
-
-            mr.start(200); // 每 200ms 收集一次，确保所有浏览器稳定触发 ondataavailable
-            voiceBtn.classList.add('recording');
-            voiceBtn.textContent = '🎤 松开结束';
-            voiceStatus.textContent = '🔴 录音中...';
-
+          mr.ondataavailable = e => { if (e.data && e.data.size > 0) State.get('audioChunks').push(e.data); };
+          mr.onstop = () => {
             const rt = State.get('recTimerInterval');
-            if (rt) clearInterval(rt);
-            const newRt = setInterval(() => {
-              const s = State.get('recSeconds') + 1;
-              State.set('recSeconds', s);
-              voiceDuration.textContent = s + 's';
-              if (s >= 60) stopRec();
-            }, 1000);
-            State.set('recTimerInterval', newRt);
+            if (rt) { clearInterval(rt); State.set('recTimerInterval', null); }
+            State.set('isRecording', false);
+            if (waveAnimId) { cancelAnimationFrame(waveAnimId); waveAnimId = null; }
+            waveCanvas.style.display = 'none';
+            analyserNode = null;
+            // 录完后轨道已不再需要，彻底释放
+            stream.getTracks().forEach(t => t.stop());
 
-          }).catch(() => {
-            // 二次拒绝（用户在预检后撤销权限）
-            State.set('micReady', false);
-            micErrorBox.style.display = 'block';
-          });
+            const secs = State.get('recSeconds');
+            if (secs < 1) {
+              voiceStatus.textContent = '⚠️ 录音时间太短，请重试';
+              voiceDuration.textContent = '';
+              return;
+            }
+
+            const chunks = State.get('audioChunks');
+            if (!chunks.length) {
+              voiceStatus.textContent = '⚠️ 未收到录音数据，请重试';
+              return;
+            }
+
+            const actualMime = chunks[0].type || mimeType || 'audio/webm';
+            const blob = new Blob(chunks, { type: actualMime });
+            if (blob.size > 5 * 1024 * 1024) {
+              voiceStatus.textContent = '⚠️ 录音文件过大，请缩短时长';
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result;
+              if (!result.startsWith('data:audio/')) {
+                voiceStatus.textContent = '⚠️ 录音格式异常，请重试';
+                return;
+              }
+              State.set('voiceBase64', result);
+              voiceStatus.textContent = `✅ 已录制 ${secs}秒，可回放或重录`;
+              voiceActions.innerHTML = `<button class="replay-btn" id="replayVoiceBtn">🔊 回放</button> <button class="replay-btn" id="rerecordBtn">🔄 重录</button>`;
+              document.getElementById('replayVoiceBtn').addEventListener('click', () => { new Audio(State.get('voiceBase64')).play(); });
+              document.getElementById('rerecordBtn').addEventListener('click', () => {
+                State.set('voiceBase64', null);
+                voiceActions.innerHTML = '';
+                voiceStatus.textContent = '';
+                voiceDuration.textContent = '';
+                voiceBtn.style.display = 'inline-block';
+                voiceActions.style.display = 'none';
+              });
+              voiceBtn.style.display = 'none';
+              voiceActions.style.display = 'inline';
+            };
+            reader.readAsDataURL(blob);
+          };
+
+          mr.start(200);
+          voiceBtn.classList.add('recording');
+          voiceBtn.textContent = '🎤 松开结束';
+          voiceStatus.textContent = '🔴 录音中...';
+
+          const rt = State.get('recTimerInterval');
+          if (rt) clearInterval(rt);
+          const newRt = setInterval(() => {
+            const s = State.get('recSeconds') + 1;
+            State.set('recSeconds', s);
+            voiceDuration.textContent = s + 's';
+            if (s >= 60) stopRec();
+          }, 1000);
+          State.set('recTimerInterval', newRt);
+        }
+
+        function startRec() {
+          if (State.get('isRecording')) return;
+
+          // 若已经授权过，直接录音（无弹窗，零延迟）
+          if (State.get('micReady')) {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+              .then(stream => _doRecord(stream))
+              .catch(() => {
+                // 权限被撤销
+                State.set('micReady', false);
+                _showMicDenied();
+              });
+            return;
+          }
+
+          // 首次按下：请求权限（此时已在用户手势上下文内，Chrome/Safari 均允许）
+          voiceStatus.textContent = '⏳ 正在请求麦克风权限...';
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+              State.set('micReady', true);
+              _doRecord(stream);
+            })
+            .catch(err => {
+              voiceStatus.textContent = '';
+              _showMicDenied(err);
+            });
+        }
+
+        function _showMicDenied(err) {
+          micErrorBox.style.display = 'block';
+          // NotAllowedError = 用户拒绝；SecurityError = file:// 等非安全上下文
+          const isSecurityErr = err && (err.name === 'SecurityError' || err.name === 'NotSupportedError');
+          if (isSecurityErr) {
+            micErrorBox.innerHTML = '<b>⚠️ 安全限制</b>：请用 <code>localhost</code> 或 <code>https://</code> 打开此页面，直接双击 HTML 文件时 Chrome 会阻止麦克风访问。';
+          }
         }
 
         function stopRec() {
