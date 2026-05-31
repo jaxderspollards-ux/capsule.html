@@ -626,6 +626,8 @@
         recTimerInterval: null,
         recSeconds: 0,
         isRecording: false,
+        isTouchRecording: false,
+        micReady: false,
         previewInterval: null,
         activeTimers: [],
         activeListeners: [],
@@ -930,6 +932,41 @@
 
         UI._bindThemeSelector();
         UI._initSenderLogic();
+
+        // ── 麦克风权限预检（页面挂载后立即异步执行，不阻塞 UI）──
+        State.set('micReady', false);
+        (async () => {
+          const voiceBtn   = document.getElementById('voiceBtn');
+          const micErrorBox = document.getElementById('micErrorBox');
+          if (!voiceBtn) return;
+
+          if (!navigator.mediaDevices?.getUserMedia) {
+            // 浏览器不支持
+            voiceBtn.disabled = true;
+            voiceBtn.textContent = '❌ 浏览器不支持录音';
+            voiceBtn.style.background = '#eee';
+            voiceBtn.style.color = '#999';
+            voiceBtn.style.cursor = 'not-allowed';
+            if (micErrorBox) micErrorBox.style.display = 'block';
+            return;
+          }
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // 权限获取成功，立即释放轨道，不占用麦克风录音红点
+            stream.getTracks().forEach(t => t.stop());
+            State.set('micReady', true);
+          } catch (err) {
+            // 权限被拒绝或超时
+            voiceBtn.disabled = true;
+            voiceBtn.textContent = '❌ 暂无麦克风权限';
+            voiceBtn.style.background = '#f0f0f0';
+            voiceBtn.style.color = '#aaa';
+            voiceBtn.style.border = '1.5px solid #ddd';
+            voiceBtn.style.cursor = 'not-allowed';
+            if (micErrorBox) micErrorBox.style.display = 'block';
+          }
+        })();
       },
 
       _initSenderLogic() {
@@ -966,14 +1003,50 @@
         messageInput.addEventListener('input', () => { charCount.textContent = messageInput.value.length; });
 
         // --- Voice Recording ---
-        voiceBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRec(); }, { passive: false });
-        voiceBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRec(); }, { passive: false });
-        voiceBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); stopRec(); }, { passive: false });
-        voiceBtn.addEventListener('mousedown', (e) => { if (e.pointerType === 'touch') return; startRec(); });
-        voiceBtn.addEventListener('mouseup', (e) => { if (e.pointerType === 'touch') return; stopRec(); });
-        voiceBtn.addEventListener('mouseleave', () => { if (State.get('isRecording')) stopRec(); });
+        voiceBtn.addEventListener('touchstart', (e) => {
+          if (!State.get('micReady')) return;
+          e.preventDefault();
+          State.set('isTouchRecording', true);
+          startRec();
+        }, { passive: false });
+        voiceBtn.addEventListener('touchend', (e) => {
+          if (!State.get('isTouchRecording')) return;
+          e.preventDefault();
+          State.set('isTouchRecording', false);
+          stopRec();
+        }, { passive: false });
+        voiceBtn.addEventListener('touchcancel', (e) => {
+          if (!State.get('isTouchRecording')) return;
+          e.preventDefault();
+          State.set('isTouchRecording', false);
+          stopRec();
+        }, { passive: false });
+        voiceBtn.addEventListener('mousedown', (e) => {
+          if (!State.get('micReady') || e.pointerType === 'touch' || State.get('isTouchRecording')) return;
+          startRec();
+        });
+        voiceBtn.addEventListener('mouseup', (e) => {
+          if (e.pointerType === 'touch' || State.get('isTouchRecording')) return;
+          stopRec();
+        });
+        voiceBtn.addEventListener('mouseleave', () => {
+          if (State.get('isRecording') && !State.get('isTouchRecording')) stopRec();
+        });
 
-        retryMicBtn.addEventListener('click', () => { micErrorBox.style.display = 'none'; startRec(); });
+        retryMicBtn.addEventListener('click', async () => {
+          micErrorBox.style.display = 'none';
+          // 重试时也走预检流程，防止再次被 iOS 拦截
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(t => t.stop());
+            State.set('micReady', true);
+            voiceBtn.disabled = false;
+            voiceBtn.textContent = '🎤 按住录音';
+            voiceBtn.style.cssText = '';
+          } catch(err) {
+            micErrorBox.style.display = 'block';
+          }
+        });
 
         let analyserNode = null, waveAnimId = null;
 
@@ -1004,21 +1077,19 @@
         }
 
         function startRec() {
-          if (State.get('isRecording')) return;
-          if (!navigator.mediaDevices?.getUserMedia) {
-            micErrorBox.style.display = 'block'; return;
-          }
+          if (State.get('isRecording') || !State.get('micReady')) return;
+
+          // 权限已预检通过，直接发起 stream（无弹窗拦截）
           navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
             micErrorBox.style.display = 'none';
             State.set('isRecording', true);
-            const mr = new MediaRecorder(stream);
-            State.set('mediaRecorder', mr);
             State.set('audioChunks', []);
             State.set('recSeconds', 0);
             voiceDuration.textContent = '0s';
 
             try { navigator.vibrate && navigator.vibrate(50); } catch(e) {}
 
+            // 波形可视化
             try {
               const audioCtxLocal = new (window.AudioContext || window.webkitAudioContext)();
               const source = audioCtxLocal.createMediaStreamSource(stream);
@@ -1029,7 +1100,16 @@
               drawWave();
             } catch(e) {}
 
-            mr.ondataavailable = e => State.get('audioChunks').push(e.data);
+            // 自适应 MIME：优先 webm，iOS 降级 mp4
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+              ? 'audio/webm;codecs=opus'
+              : MediaRecorder.isTypeSupported('audio/mp4')
+                ? 'audio/mp4'
+                : '';
+            const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+            State.set('mediaRecorder', mr);
+
+            mr.ondataavailable = e => { if (e.data && e.data.size > 0) State.get('audioChunks').push(e.data); };
             mr.onstop = () => {
               const rt = State.get('recTimerInterval');
               if (rt) { clearInterval(rt); State.set('recTimerInterval', null); }
@@ -1045,7 +1125,14 @@
                 return;
               }
 
-              const blob = new Blob(State.get('audioChunks'), { type: 'audio/webm' });
+              const chunks = State.get('audioChunks');
+              if (!chunks.length) {
+                voiceStatus.textContent = '⚠️ 未收到录音数据，请重试';
+                return;
+              }
+
+              const actualMime = chunks[0].type || mimeType || 'audio/webm';
+              const blob = new Blob(chunks, { type: actualMime });
               if (blob.size > 5 * 1024 * 1024) {
                 voiceStatus.textContent = '⚠️ 录音文件过大，请缩短时长';
                 return;
@@ -1053,7 +1140,8 @@
               const reader = new FileReader();
               reader.onload = () => {
                 const result = reader.result;
-                if (!result.startsWith('data:audio/webm')) {
+                // 兼容所有合法音频格式（webm / mp4 / ogg 等）
+                if (!result.startsWith('data:audio/')) {
                   voiceStatus.textContent = '⚠️ 录音格式异常，请重试';
                   return;
                 }
@@ -1075,7 +1163,7 @@
               reader.readAsDataURL(blob);
             };
 
-            mr.start();
+            mr.start(200); // 每 200ms 收集一次，确保所有浏览器稳定触发 ondataavailable
             voiceBtn.classList.add('recording');
             voiceBtn.textContent = '🎤 松开结束';
             voiceStatus.textContent = '🔴 录音中...';
@@ -1090,7 +1178,9 @@
             }, 1000);
             State.set('recTimerInterval', newRt);
 
-          }).catch((err) => {
+          }).catch(() => {
+            // 二次拒绝（用户在预检后撤销权限）
+            State.set('micReady', false);
             micErrorBox.style.display = 'block';
           });
         }
@@ -1613,34 +1703,60 @@
     }
 
     function playSlideshow(images, music, area, cb) {
-      let slideshowAudioCtx = null, musicOn = false;
+      // ── HTML5 Audio 背景音乐引擎（替换原 OscillatorNode 合成音）──
+      let bgm = null;
+      let fadeTimer = null;
 
       function startMusic() {
-        if (music === 'none' || musicOn) return;
+        if (music === 'none') return;
         try {
-          slideshowAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const notes = {
-            melody1: [523,659,784,1047,784,659,523,440,523,659,784,659,523,440,392,440],
-            melody2: [392,440,523,392,440,523,659,523,440,392,330,392,440,523,440,392]
-          }[music] || [];
-          let ni = 0;
-          function p() {
-            if (!slideshowAudioCtx) return;
-            const o = slideshowAudioCtx.createOscillator(), g = slideshowAudioCtx.createGain();
-            o.type = 'sine'; o.frequency.value = notes[ni%notes.length];
-            g.gain.setValueAtTime(0.12, slideshowAudioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, slideshowAudioCtx.currentTime+1.8);
-            o.connect(g); g.connect(slideshowAudioCtx.destination);
-            o.start(); o.stop(slideshowAudioCtx.currentTime+1.8); ni++;
+          bgm = new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
+          bgm.loop = true;
+          bgm.volume = 0;
+          // 绑定到用户手势上下文内，规避移动端自动播放策略
+          const playPromise = bgm.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              // 自动播放被阻止时静默失败，不影响幻灯片流程
+              bgm = null;
+            });
           }
-          p(); musicOn = true;
-          const id = setInterval(p, 2400);
-          Utils.addTimer(id);
-        } catch(e) {}
+          // 淡入：0 → 0.15 用 2 秒线性递增
+          let vol = 0;
+          const targetVol = 0.15;
+          const fadeInStep = targetVol / (2000 / 50); // 每 50ms 步进
+          fadeTimer = setInterval(() => {
+            if (!bgm) { clearInterval(fadeTimer); return; }
+            vol = Math.min(vol + fadeInStep, targetVol);
+            bgm.volume = vol;
+            if (vol >= targetVol) clearInterval(fadeTimer);
+          }, 50);
+        } catch(e) { bgm = null; }
       }
-      function stopMusic() {
-        if (slideshowAudioCtx) { try { slideshowAudioCtx.close(); } catch(e) {} slideshowAudioCtx = null; }
-        musicOn = false;
+
+      function stopMusic(withFade, onDone) {
+        clearInterval(fadeTimer);
+        if (!bgm) { if (onDone) onDone(); return; }
+        if (!withFade) {
+          try { bgm.pause(); } catch(e) {}
+          bgm = null;
+          if (onDone) onDone();
+          return;
+        }
+        // 淡出：当前音量 → 0 用 2.5 秒线性递减
+        const startVol = bgm.volume;
+        const fadeOutStep = startVol / (2500 / 50);
+        fadeTimer = setInterval(() => {
+          if (!bgm) { clearInterval(fadeTimer); if (onDone) onDone(); return; }
+          const next = Math.max(bgm.volume - fadeOutStep, 0);
+          bgm.volume = next;
+          if (next <= 0) {
+            clearInterval(fadeTimer);
+            try { bgm.pause(); } catch(e) {}
+            bgm = null;
+            if (onDone) onDone();
+          }
+        }, 50);
       }
 
       const phrases = ['这些画面，你还记得吗...','每一个瞬间，都是真的...','回忆不会说谎...','那时候的我们，多好啊...','TA一直记得...','珍惜每一次在一起...'];
@@ -1651,6 +1767,8 @@
           <div class="slide-phrase" id="slidePhrase">回忆缓缓展开...</div>
         </div>
       `;
+
+      // 音乐在用户手势（#startBtn click）调用链内执行，绕过 autoplay 策略
       startMusic();
 
       const imgs = document.querySelectorAll('.slideshow-viewer img');
@@ -1668,8 +1786,10 @@
         } else {
           phrase.textContent = '回忆播完了，但那些美好从未离开 ✨';
           counter.textContent = '';
-          stopMusic();
-          if (cb) Utils.addTimer(setTimeout(cb, 900));
+          // 淡出音乐，结束后再触发回调
+          stopMusic(true, () => {
+            if (cb) Utils.addTimer(setTimeout(cb, 400));
+          });
         }
       }
       Utils.addTimer(setTimeout(next, 3500));
